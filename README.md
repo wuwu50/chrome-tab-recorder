@@ -4,11 +4,15 @@ Chrome 116+ 擴充功能：指定分頁影音錄製、獨立繁體中文控制�
 
 ## 下載與安裝
 
-到 [GitHub Releases](https://github.com/wuwu50/chrome-tab-recorder/releases/latest) 下載 `ChromeTabRecorder-版本.zip`，解壓縮。在 `chrome://extensions` 開啟開發人員模式，載入包含 `manifest.json` 的資料夾。
+Windows 10／11：到 [GitHub Releases](https://github.com/wuwu50/chrome-tab-recorder/releases/latest) 下載 `ChromeTabRecorder-版本-Setup.exe`。安裝後開啟桌面或開始功能表捷徑，使用引導介面開啟 Chrome、複製擴充功能資料夾路徑，完成「載入未封裝項目」。不需要系統管理員權限。
+
+EXE 負責安裝檔案、建立捷徑與引導 Chrome 啟用；影音錄製仍由 Chrome 擴充功能執行。第一次啟用與升級後重新載入需要使用者操作。解除安裝前，先在 Chrome 移除擴充功能。
+
+也保留 ZIP 手動安裝：解壓縮，在 chrome://extensions 開啟開發人員模式，載入包含 manifest.json 的資料夾。
 
 在目標網頁點擴充功能圖示 → 開啟獨立控制視窗 → 開始錄影。背景錄影不擷取其他程式、其他分頁或麥克風音訊。最小化後畫面是否持續更新仍取決於網站與 Chrome，請先短錄驗證。
 
-完整操作與限制請看 [使用說明](extension/使用說明.md)。本程式是擴充功能，不是獨立 EXE；UI 是獨立 Chrome 控制視窗。
+完整操作與限制請看 [使用說明](extension/使用說明.md)。錄影 UI 是獨立 Chrome 控制視窗，安裝引導則是原生 Windows 視窗。
 
 ## 程式內更新
 

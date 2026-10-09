@@ -2,7 +2,7 @@ name: Publish recorder
 on:
   push:
     branches: [main]
-    paths: ['extension/**', 'tests/**', '.github/workflows/release.yml']
+    paths: ['extension/**', 'installer/**', 'tests/**', '.github/workflows/release.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -10,7 +10,23 @@ concurrency:
   group: recorder-release
   cancel-in-progress: false
 jobs:
+  windows-installer:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build installer
+        shell: pwsh
+        run: ./installer/build.ps1
+      - name: Verify install and uninstall
+        shell: pwsh
+        run: ./installer/test-install.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/*-Setup.exe
+          if-no-files-found: error
   release:
+    needs: windows-installer
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +38,10 @@ jobs:
           for file in extension/*.js; do node --check "$file"; done
           node tests/test-recorder.cjs
           node tests/test-updates.cjs
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: dist
       - name: Build and publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,7 +55,7 @@ jobs:
             echo "Version v$VERSION is already published. Increment manifest.json version before publishing again."
             exit 1
           fi
-          gh release create "v$VERSION" "dist/ChromeTabRecorder-$VERSION.zip" --repo "$REPOSITORY" --target "$COMMIT" --title "分頁影音錄影機 v$VERSION" --notes-file RELEASE_NOTES.md
+          gh release create "v$VERSION" "dist/ChromeTabRecorder-$VERSION.zip" "dist/ChromeTabRecorder-$VERSION-Setup.exe" --repo "$REPOSITORY" --target "$COMMIT" --title "分頁影音錄影機 v$VERSION" --notes-file RELEASE_NOTES.md
       - name: Publish update feed
         env:
           GH_TOKEN: ${{ github.token }}
@@ -46,7 +66,7 @@ jobs:
           from pathlib import Path
           repo = os.environ['REPOSITORY']
           version = json.loads(Path('extension/manifest.json').read_text())['version']
-          feed = {'version': version, 'downloadUrl': f'https://github.com/{repo}/releases/download/v{version}/ChromeTabRecorder-{version}.zip', 'notes': Path('RELEASE_NOTES.md').read_text()}
+          feed = {'version': version, 'downloadUrl': f'https://github.com/{repo}/releases/download/v{version}/ChromeTabRecorder-{version}-Setup.exe', 'zipUrl': f'https://github.com/{repo}/releases/download/v{version}/ChromeTabRecorder-{version}.zip', 'notes': Path('RELEASE_NOTES.md').read_text()}
           content = json.dumps(feed, ensure_ascii=False, indent=2) + '\n'
           result = subprocess.run(['gh','api',f'repos/{repo}/contents/version.json?ref=main'], capture_output=True, text=True)
           if result.returncode:
