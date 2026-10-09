@@ -5,7 +5,12 @@ let writeError = null;
 let stopping = null;
 let filename;
 const tempName = 'recording.tmp';
-const mimeTypes = ['video/mp4;codecs=avc1.42001E,mp4a.40.2','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+const mimeTypes = ['video/mp4','video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm'];
+const profiles = {
+  normal:{fps:30,bitrate:4000000},high:{fps:30,bitrate:8000000},
+  '1080p60':{width:1920,height:1080,fps:60,bitrate:16000000},
+  '1080p120':{width:1920,height:1080,fps:120,bitrate:32000000}
+};
 function notify() {
   chrome.runtime.sendMessage({target:'background',type:'state',phase:state.phase,error:state.error || ''}).catch(() => {});
 }
@@ -34,11 +39,21 @@ async function start(message) {
     writes = Promise.resolve();
     writeError = null;
     stopping = null;
+    const profile = profiles[message.quality || 'normal'];
+    if (!profile) throw new Error('不支援的錄影設定。');
+    const videoConstraints = {chromeMediaSource:'tab',chromeMediaSourceId:message.streamId,maxFrameRate:profile.fps};
+    if (profile.width) Object.assign(videoConstraints,{minWidth:profile.width,maxWidth:profile.width,minHeight:profile.height,maxHeight:profile.height,minFrameRate:profile.fps});
     media = await navigator.mediaDevices.getUserMedia({
       audio:{mandatory:{chromeMediaSource:'tab',chromeMediaSourceId:message.streamId}},
-      video:{mandatory:{chromeMediaSource:'tab',chromeMediaSourceId:message.streamId,maxFrameRate:30}}
+      video:{mandatory:videoConstraints}
     });
     if (!media.getVideoTracks().length) throw new Error('沒有取得分頁畫面。');
+    const settings = media.getVideoTracks()[0].getSettings();
+    if (profile.width && (settings.width !== profile.width || settings.height !== profile.height || !(settings.frameRate >= profile.fps - 0.01))) {
+      throw new Error(`Chrome 未提供 ${profile.width}×${profile.height} / ${profile.fps} FPS 擷取設定（回報 ${settings.width || '?'}×${settings.height || '?'} / ${settings.frameRate || '?'} FPS）。請改選較低設定。`);
+    }
+    state.captureFormat = `${settings.width || '?'}×${settings.height || '?'} / ${settings.frameRate || '?'} FPS`;
+    state.requestedFps = profile.fps;
     if (media.getAudioTracks().length) {
       audio = new AudioContext();
       audio.createMediaStreamSource(media).connect(audio.destination);
@@ -46,7 +61,7 @@ async function start(message) {
     }
     const mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
     if (!mimeType) throw new Error('這個 Chrome 版本沒有可用的影片編碼器。');
-    recorder = new MediaRecorder(media,{mimeType,videoBitsPerSecond:message.quality === 'high' ? 8000000 : 4000000,audioBitsPerSecond:192000});
+    recorder = new MediaRecorder(media,{mimeType,videoBitsPerSecond:profile.bitrate,audioBitsPerSecond:192000});
     const stamp = new Date().toLocaleString('sv-SE').replace(/[^0-9]/g,'');
     filename = `分頁錄影-${stamp}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`;
     recorder.ondataavailable = event => {

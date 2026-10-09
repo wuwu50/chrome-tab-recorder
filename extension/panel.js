@@ -69,6 +69,7 @@ function render() {
   const seconds = state.startedAt ? Math.max(0,Math.floor(((state.endedAt || Date.now()) - state.startedAt) / 1000)) : 0;
   $('time').textContent = [Math.floor(seconds / 3600),Math.floor(seconds / 60) % 60,seconds % 60].map(n=>String(n).padStart(2,'0')).join(':');
   $('size').textContent = `${((state.bytes || 0) / 1048576).toFixed(1)} MB`;
+  $('capture-format').textContent = state.captureFormat ? `Chrome 擷取設定：${state.captureFormat}` : '尚未擷取；實際畫面更新率取決於來源與硬體';
   const recording = !['idle','error'].includes(state.phase);
   $('title').textContent = (recording ? state.title : target?.title) || '尚未選擇錄製分頁';
   $('site').textContent = recording && state.tabId !== target?.id ? '已固定錄製目標' : (target?.url || '在目標分頁開啟此控制視窗');
@@ -109,6 +110,6 @@ if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.3.0';
+  $('version').textContent = 'v1.4.0';
   updateButtons();
 } else { refresh(); loadUpdateSettings(); setInterval(refresh,1000); }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "分頁影音錄影機",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "錄製選定 Chrome 分頁的影音，背景錄製，不擷取麥克風或其他分頁。",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "tabCapture", "offscreen", "downloads", "storage"],

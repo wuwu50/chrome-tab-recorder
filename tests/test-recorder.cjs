@@ -3,9 +3,10 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8');
-function setup({captureFails = false,saveFails = false} = {}) {
+function setup({captureFails = false,saveFails = false,settingsOverride = null} = {}) {
   let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0;
   const tracks = ['video','audio'].map(kind => ({kind,stop(){stopped++},addEventListener(name,fn){this.ended = fn}}));
+  tracks[0].getSettings = () => settingsOverride || ({width:constraints?.video.mandatory.maxWidth || 1280,height:constraints?.video.mandatory.maxHeight || 720,frameRate:constraints?.video.mandatory.maxFrameRate || 30});
   const stream = {getTracks:()=>tracks,getVideoTracks:()=>[tracks[0]],getAudioTracks:()=>[tracks[1]]};
   const writer = {async write(blob){await new Promise(r=>setTimeout(r,5));writes.push(blob)},async close(){closed=true},async abort(){aborted++}};
   const root = {async getFileHandle(){return {async createWritable(){return writer},async getFile(){assert(closed,'download before file close');return new Blob(writes)}}},async removeEntry(){removed++}};
@@ -25,7 +26,7 @@ function setup({captureFails = false,saveFails = false} = {}) {
   });
   vm.runInContext(source,context);
   const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,...extra},{id:'test'},resolve));
-  return {command,tracks,get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads}}};
+  return {command,tracks,get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,encoding:Recorder.instance?.options}}};
 }
 async function until(test,phase) {
   for(let i=0;i<100;i++){const s=await test.command('status');if(s.data.phase===phase)return s.data;await new Promise(r=>setTimeout(r,5))}
@@ -63,5 +64,21 @@ async function until(test,phase) {
   const pending = await until(cancel,'ready');
   assert(pending.error.includes('cancelled'));
   assert.equal(cancel.stats.removed,0);
+  for(const fps of [60,120]) {
+    const hd=setup();
+    const result=await hd.command('start',{streamId:'hd',quality:`1080p${fps}`});
+    assert(result.ok,result.error);
+    assert.equal(hd.stats.constraints.video.mandatory.minWidth,1920);
+    assert.equal(hd.stats.constraints.video.mandatory.maxHeight,1080);
+    assert.equal(hd.stats.constraints.video.mandatory.minFrameRate,fps);
+    assert.equal(hd.stats.encoding.videoBitsPerSecond,fps===120?32000000:16000000);
+    assert(result.data.captureFormat.includes(String(fps)));
+    await hd.command('stop');await until(hd,'downloading');
+  }
+  const limited=setup({settingsOverride:{width:1920,height:1080,frameRate:60}});
+  const rejected=await limited.command('start',{streamId:'limited',quality:'1080p120'});
+  assert(!rejected.ok,'must not silently claim 120 FPS when Chrome reports 60');
+  assert.equal(limited.stats.stopped,2);
+  assert.equal(limited.stats.aborted,1);
   console.log('PASS: tab-only media, concurrent guard, final chunk flush, track cleanup, download retry, temp cleanup, target closed, acquisition failure.');
 })().catch(error=>{console.error(error);process.exitCode=1});
