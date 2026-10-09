@@ -1,6 +1,6 @@
 {
-  "version": "1.3.0",
-  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.3.0/ChromeTabRecorder-1.3.0-Setup.exe",
-  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.3.0/ChromeTabRecorder-1.3.0.zip",
-  "notes": "v1.3.0 新增 Windows 安裝 EXE，提供安裝／解除安裝、開始功能表與可選桌面捷徑、Chrome 擴充功能啟用引導介面。\n\nWindows：下載 ChromeTabRecorder-1.3.0-Setup.exe，執行安裝。完成後開啟引導介面，依指示在 Chrome 載入擴充功能。也保留 ZIP 手動安裝。\n\n網站可能在最小化後暫停更新；請先短錄測試。更新需手動替換檔案與重新載入；先停止錄影並儲存。\n"
+  "version": "1.4.0",
+  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.4.0/ChromeTabRecorder-1.4.0-Setup.exe",
+  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.4.0/ChromeTabRecorder-1.4.0.zip",
+  "notes": "v1.4.0 新增 1920×1080／120 FPS（32 Mbps）與 1920×1080／60 FPS（16 Mbps）錄影設定。控制介面顯示 Chrome 回報的擷取設定；若不能取得所選設定會明確報錯，不默默降為 30／60 FPS。\n\nWindows：下載 ChromeTabRecorder-1.4.0-Setup.exe。升級前停止錄影並儲存，安裝後到 Chrome 擴充功能頁重新載入。\n\n120 FPS 是擷取與編碼的目標，不代表每秒都有 120 個不同畫面。網頁來源、Chrome 與硬體可能限制實際更新與編碼速度；60 FPS 影片不能變成真正的 120 FPS 內容。最小化可能降幀，需實測。1080p 不會增加低畫質來源的細節。\n\n網站可能在最小化後暫停更新；請先短錄測試。更新需手動替換檔案與重新載入；先停止錄影並儲存。\n"
 }
