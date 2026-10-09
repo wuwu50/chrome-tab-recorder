@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分頁影音錄影機</title>
+<link rel="stylesheet" href="popup.css">
+<body>
+  <header><span class="dot"></span> 分頁影音錄影機</header>
+  <p class="intro">只錄這個分頁的畫面與聲音</p>
+  <button id="panel" class="secondary">開啟獨立控制視窗</button>
+  <div class="card">
+    <div id="status" role="status" aria-live="polite">讀取中…</div>
+    <div id="title"></div>
+    <div id="time">00:00:00</div>
+    <div id="size"></div>
+  </div>
+  <label for="quality">畫面品質</label>
+  <select id="quality"><option value="normal">標準 · 30 fps / 4 Mbps</option><option value="high">高畫質 · 30 fps / 8 Mbps</option></select>
+  <button id="start" disabled>開始錄製目前分頁</button>
+  <button id="stop" class="stop" disabled>停止並儲存</button>
+  <button id="retry" hidden>重新儲存影片</button>
+  <button id="discard" class="secondary" hidden>刪除暫存影片</button>
+  <p id="error" role="alert"></p>
+  <p class="note">開始後可以切換分頁或最小化 Chrome。請保持瀏覽器開啟；部分網站最小化後可能停止播放。</p>
+  <footer>其他分頁與程式的聲音不會混入 · 不啟用麥克風</footer>
+  <script src="popup.js"></script>
+</body>
+</html>

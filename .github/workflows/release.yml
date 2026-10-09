@@ -1,0 +1,62 @@
+name: Publish recorder
+on:
+  push:
+    branches: [main]
+    paths: ['extension/**', 'tests/**', '.github/workflows/release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: recorder-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate
+        run: |
+          for file in extension/*.js; do node --check "$file"; done
+          node tests/test-recorder.cjs
+          node tests/test-updates.cjs
+      - name: Build and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          VERSION=$(node -p "require('./extension/manifest.json').version")
+          mkdir -p dist
+          (cd extension && zip -r "../dist/ChromeTabRecorder-$VERSION.zip" .)
+          if gh release view "v$VERSION" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            echo "Version v$VERSION is already published. Increment manifest.json version before publishing again."
+            exit 1
+          fi
+          gh release create "v$VERSION" "dist/ChromeTabRecorder-$VERSION.zip" --repo "$REPOSITORY" --target "$COMMIT" --title "分頁影音錄影機 v$VERSION" --notes-file RELEASE_NOTES.md
+      - name: Publish update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import base64, json, os, subprocess
+          from pathlib import Path
+          repo = os.environ['REPOSITORY']
+          version = json.loads(Path('extension/manifest.json').read_text())['version']
+          feed = {'version': version, 'downloadUrl': f'https://github.com/{repo}/releases/download/v{version}/ChromeTabRecorder-{version}.zip', 'notes': Path('RELEASE_NOTES.md').read_text()}
+          content = json.dumps(feed, ensure_ascii=False, indent=2) + '\n'
+          result = subprocess.run(['gh','api',f'repos/{repo}/contents/version.json?ref=main'], capture_output=True, text=True)
+          if result.returncode:
+              # Allow a missing initial feed; other API failures must stop publication.
+              if '404' not in result.stderr:
+                  raise RuntimeError(result.stderr)
+              sha = None
+          else:
+              sha = json.loads(result.stdout)['sha']
+          payload = {'message': f'Publish update feed for v{version}', 'branch': 'main', 'content': base64.b64encode(content.encode()).decode()}
+          if sha: payload['sha'] = sha
+          subprocess.run(['gh','api','--method','PUT',f'repos/{repo}/contents/version.json','--input','-'], input=json.dumps(payload), text=True, check=True, stdout=subprocess.DEVNULL)
+          PY

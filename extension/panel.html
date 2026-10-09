@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>分頁影音錄影機</title><link rel="stylesheet" href="panel.css"></head>
+<body>
+<div class="app">
+  <header><div class="brand"><span class="logo">●</span><div><h1>分頁影音錄影機</h1><p>Chrome 專用 · 本機錄製</p></div></div><span class="badge" id="badge">準備就緒</span></header>
+  <div id="demo" hidden>介面預覽 · 按鈕不會啟動錄影</div>
+  <main>
+    <section class="record-card">
+      <div class="section-label">錄影狀態</div>
+      <div class="status-line"><span class="light" id="light"></span><span id="status" role="status" aria-live="polite">讀取中…</span></div>
+      <div id="time">00:00:00</div>
+      <div class="stats"><span>已錄製時間</span><span id="size">0.0 MB</span></div>
+      <div class="target"><div class="target-icon">▣</div><div class="target-content"><div class="section-label">錄製分頁</div><div id="title">正在取得目標…</div><div id="site"></div></div><button id="locate" class="text-button">查看分頁 ↗</button></div>
+      <p class="target-help">要更換目標，請在想錄製的分頁點工具列圖示，再按「開啟獨立控制視窗」。</p>
+      <div class="actions"><button id="start" class="primary" disabled>● 開始錄影</button><button id="stop" class="stop" disabled>■ 停止並儲存</button></div>
+      <div class="recovery"><button id="retry" class="primary" hidden>重新儲存影片</button><button id="discard" class="text-button" hidden>刪除暫存影片</button></div>
+      <p id="error" role="alert"></p>
+    </section>
+    <aside>
+      <section class="settings"><h2>錄製設定</h2><label for="quality">畫面品質</label><select id="quality"><option value="normal">標準 · 30 fps / 4 Mbps</option><option value="high">高畫質 · 30 fps / 8 Mbps</option></select><div class="setting-row"><span>畫面來源</span><strong>指定分頁</strong></div><div class="setting-row"><span>音訊來源</span><strong>指定分頁</strong></div><div class="setting-row"><span>麥克風</span><strong class="muted">關閉</strong></div><div class="setting-row"><span>其他程式音訊</span><strong class="muted">不擷取</strong></div><p>影片在本機處理。支援時儲存 MP4，否則使用 WebM。</p></section>
+      <section class="background-note"><span>↙</span><h2>可以放到背景錄製</h2><p>切換分頁、使用其他程式或最小化 Chrome，錄影工作仍會持續。</p><p class="caution">部分網站最小化後可能停止播放或更新畫面，請先短錄測試。</p></section>
+      <section class="updates">
+        <div class="update-heading"><h2>程式更新</h2><span id="version">版本 —</span></div>
+        <button id="check-update" class="update-check">↻ 檢查更新</button>
+        <p id="update-status" role="status" aria-live="polite">尚未設定更新來源</p>
+        <p id="update-notes" hidden></p>
+        <a id="update-download" class="download-link" target="_blank" rel="noopener noreferrer" hidden>下載新版 ↗</a>
+        <details><summary>設定更新來源</summary><label for="update-source">版本 JSON 網址</label><input id="update-source" type="url" placeholder="https://你的網站/version.json" autocomplete="off" spellcheck="false"><button id="save-update-source" class="update-check">儲存來源</button><p>填入發布者提供的 HTTPS 網址。留空並儲存即可關閉線上檢查。</p></details>
+        <p class="update-hint">下載後，先停止錄影並儲存，再解壓縮替換檔案，到 Chrome 擴充功能頁重新載入。</p>
+      </section>
+    </aside>
+  </main>
+  <footer><span>1 選擇分頁　→　2 開始錄影　→　3 停止並儲存</span><span>錄影時請保持 Chrome 開啟</span></footer>
+</div>
+<script src="updates.js"></script>
+<script src="panel.js"></script>
+</body></html>

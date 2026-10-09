@@ -1,0 +1,67 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const source = fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8');
+function setup({captureFails = false,saveFails = false} = {}) {
+  let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0;
+  const tracks = ['video','audio'].map(kind => ({kind,stop(){stopped++},addEventListener(name,fn){this.ended = fn}}));
+  const stream = {getTracks:()=>tracks,getVideoTracks:()=>[tracks[0]],getAudioTracks:()=>[tracks[1]]};
+  const writer = {async write(blob){await new Promise(r=>setTimeout(r,5));writes.push(blob)},async close(){closed=true},async abort(){aborted++}};
+  const root = {async getFileHandle(){return {async createWritable(){return writer},async getFile(){assert(closed,'download before file close');return new Blob(writes)}}},async removeEntry(){removed++}};
+  class Recorder {
+    static isTypeSupported(type){return type.includes('webm')}
+    constructor(media,options){this.state='inactive';this.options=options;Recorder.instance=this}
+    start(){this.state='recording';this.ondataavailable({data:new Blob(['first'])})}
+    stop(){assert.equal(this.state,'recording');this.state='inactive';queueMicrotask(()=>{this.ondataavailable({data:new Blob(['last'])});this.onstop()})}
+  }
+  const context = vm.createContext({
+    chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn}},async sendMessage(m){
+      if(m.type==='save-file'){downloads++;if(saveFails)return {ok:false,error:'cancelled'};return {ok:true,data:{downloadId:7}}}return {ok:true};
+    }}},
+    navigator:{storage:{getDirectory:async()=>root},mediaDevices:{async getUserMedia(c){constraints=c;if(captureFails)throw Error('denied');return stream}}},
+    MediaRecorder:Recorder,AudioContext:class{createMediaStreamSource(){return {connect(){}}}destination={};async resume(){}async close(){}},
+    URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Date,Promise,console
+  });
+  vm.runInContext(source,context);
+  const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,...extra},{id:'test'},resolve));
+  return {command,tracks,get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads}}};
+}
+async function until(test,phase) {
+  for(let i=0;i<100;i++){const s=await test.command('status');if(s.data.phase===phase)return s.data;await new Promise(r=>setTimeout(r,5))}
+  throw Error(`never reached ${phase}`);
+}
+(async()=>{
+  const t = setup();
+  assert((await t.command('start',{streamId:'tab-123',title:'video'})).ok);
+  assert.equal(t.stats.constraints.audio.mandatory.chromeMediaSource,'tab');
+  assert.equal(t.stats.constraints.video.mandatory.chromeMediaSourceId,'tab-123');
+  assert(!(await t.command('start',{streamId:'other'})).ok,'must prevent concurrent capture');
+  assert((await t.command('stop')).ok);
+  const saved = await until(t,'downloading');
+  assert.equal(saved.bytes,9,'must include final chunk');
+  assert.equal(t.stats.stopped,2,'release both capture tracks');
+  assert.equal(t.stats.writes.length,2);
+  await t.command('download-ended',{complete:false,error:'cancelled'});
+  await until(t,'ready');
+  assert.equal(t.stats.removed,0,'must retain file on canceled download');
+  assert((await t.command('download')).ok);
+  assert.equal(t.stats.downloads,2);
+  await t.command('download-ended',{complete:true});
+  await until(t,'idle');
+  assert.equal(t.stats.removed,1,'delete temp only after completed download');
+  assert((await t.command('start',{streamId:'again',title:'again'})).ok);
+  t.tracks[0].ended();
+  await until(t,'downloading');
+  const failure = setup({captureFails:true});
+  assert(!(await failure.command('start',{streamId:'bad'})).ok);
+  await until(failure,'error');
+  assert.equal(failure.stats.aborted,1,'abort temp writer when acquisition fails');
+  const cancel = setup({saveFails:true});
+  await cancel.command('start',{streamId:'ok'});
+  await cancel.command('stop');
+  const pending = await until(cancel,'ready');
+  assert(pending.error.includes('cancelled'));
+  assert.equal(cancel.stats.removed,0);
+  console.log('PASS: tab-only media, concurrent guard, final chunk flush, track cleanup, download retry, temp cleanup, target closed, acquisition failure.');
+})().catch(error=>{console.error(error);process.exitCode=1});
