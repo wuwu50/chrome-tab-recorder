@@ -15,6 +15,10 @@ function notify() {
   chrome.runtime.sendMessage({target:'background',type:'state',phase:state.phase,error:state.error || ''}).catch(() => {});
 }
 async function releaseMedia() {
+  if (media) {
+    const restored = await chrome.runtime.sendMessage({target:'background',type:'restore-audio'}).catch(() => null);
+    if (!restored?.ok) state.error = '無法確認分頁靜音已恢復，請檢查 Chrome 分頁的靜音狀態。';
+  }
   media?.getTracks().forEach(track => track.stop());
   media = null;
   if (audio) { await audio.close().catch(() => {}); audio = null; }
@@ -54,7 +58,11 @@ async function start(message) {
     }
     state.captureFormat = `${settings.width || '?'}×${settings.height || '?'} / ${settings.frameRate || '?'} FPS`;
     state.requestedFps = profile.fps;
-    if (media.getAudioTracks().length) {
+    const prepared = await chrome.runtime.sendMessage({target:'background',type:'prepare-audio',tabId:message.tabId});
+    if (!prepared?.ok) throw new Error(prepared?.error || '無法準備分頁音訊。');
+    state.monitorAudio = message.monitorAudio === true && !prepared.data?.originallyMuted;
+    state.audioMode = state.monitorAudio ? '錄音並播放到喇叭' : '安靜錄影，持續錄入分頁音訊';
+    if (state.monitorAudio && media.getAudioTracks().length) {
       audio = new AudioContext();
       audio.createMediaStreamSource(media).connect(audio.destination);
       await audio.resume();
@@ -138,6 +146,11 @@ async function download() {
 }
 async function handle(message) {
   switch (message.type) {
+    case 'monitor-off':
+      if (audio) { await audio.close(); audio = null; }
+      state.monitorAudio = false;
+      state.audioMode = '安靜錄影，持續錄入分頁音訊';
+      return {...state};
     case 'status': return {...state};
     case 'start': return start(message);
     case 'stop': return stop();

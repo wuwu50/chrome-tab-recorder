@@ -38,6 +38,7 @@ jobs:
           for file in extension/*.js; do node --check "$file"; done
           node tests/test-recorder.cjs
           node tests/test-updates.cjs
+          node tests/test-audio-routing.cjs
       - uses: actions/download-artifact@v4
         with:
           name: windows-installer

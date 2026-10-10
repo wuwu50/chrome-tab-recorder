@@ -76,6 +76,7 @@ function render() {
   $('start').disabled = preview || busy || recording || !target;
   $('stop').disabled = preview || busy || state.phase !== 'recording';
   $('quality').disabled = preview || busy || recording;
+  $('monitor-audio').disabled = preview || busy || recording;
   $('locate').disabled = preview || !(recording ? state.tabId : target?.id);
   $('retry').hidden = $('discard').hidden = state.phase !== 'ready';
   $('retry').disabled = $('discard').disabled = preview || busy;
@@ -95,7 +96,7 @@ async function run(type,extra={}) {
   catch (error) { localError = error.message; }
   finally { busy = false; await refresh(); }
 }
-$('start').addEventListener('click',()=>run('start',{tabId:target?.id,quality:$('quality').value}));
+$('start').addEventListener('click',()=>run('start',{tabId:target?.id,quality:$('quality').value,monitorAudio:$('monitor-audio').checked}));
 $('stop').addEventListener('click',()=>run('stop'));
 $('retry').addEventListener('click',()=>run('download'));
 $('discard').addEventListener('click',()=>{if(confirm('確定刪除尚未儲存的暫存影片？'))run('discard')});
@@ -110,6 +111,6 @@ if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.4.0';
+  $('version').textContent = 'v1.5.0';
   updateButtons();
 } else { refresh(); loadUpdateSettings(); setInterval(refresh,1000); }

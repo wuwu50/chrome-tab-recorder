@@ -18,6 +18,7 @@ async function refresh() {
     $('start').disabled = !['idle','error'].includes(s.phase);
     $('stop').disabled = s.phase !== 'recording';
     $('quality').disabled = !['idle','error'].includes(s.phase);
+    $('monitor-audio').disabled = !['idle','error'].includes(s.phase);
     $('retry').hidden = s.phase !== 'ready';
     $('discard').hidden = s.phase !== 'ready';
     $('error').textContent = s.error || '';
@@ -39,7 +40,7 @@ async function run(type, extra = {}) {
 }
 $('start').addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
-  await run('start', {tabId:tab?.id,quality:$('quality').value});
+  await run('start', {tabId:tab?.id,quality:$('quality').value,monitorAudio:$('monitor-audio').checked});
 });
 $('stop').addEventListener('click', () => run('stop'));
 $('panel').addEventListener('click', async () => {

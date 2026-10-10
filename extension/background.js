@@ -1,4 +1,4 @@
-importScripts('updates.js');
+importScripts('updates.js','audio-routing.js');
 let starting = false;
 async function contexts() {
   return chrome.runtime.getContexts({contextTypes:['OFFSCREEN_DOCUMENT'],documentUrls:[chrome.runtime.getURL('offscreen.html')]});
@@ -20,6 +20,8 @@ async function setBadge(phase) {
 }
 async function handle(message) {
   switch (message.type) {
+    case 'prepare-audio': return prepareCapturedAudio(message.tabId);
+    case 'restore-audio': await restoreCapturedAudio(); return null;
     case 'update-settings': return getUpdateSettings();
     case 'update-source': return saveUpdateSource(message.url);
     case 'check-update': return checkForUpdate();
@@ -54,7 +56,7 @@ async function handle(message) {
         const state = await offscreen('status');
         if (!['idle','error'].includes(state.phase)) throw new Error('請先停止錄影並儲存或刪除暫存影片。');
         const streamId = await chrome.tabCapture.getMediaStreamId({targetTabId:tab.id});
-        const result = await offscreen('start',{streamId,title:tab.title || 'Chrome 分頁',tabId:tab.id,quality:message.quality});
+        const result = await offscreen('start',{streamId,title:tab.title || 'Chrome 分頁',tabId:tab.id,quality:message.quality,monitorAudio:message.monitorAudio === true});
         await chrome.storage.local.remove('lastError');
         await setBadge('recording');
         return result;
@@ -98,3 +100,6 @@ chrome.downloads.onChanged.addListener(delta => {
   if (delta.state) finishDownload(delta.id,delta.state.current,delta.error?.current);
 });
 chrome.runtime.onStartup.addListener(() => setBadge('idle'));
+chrome.tabs.onUpdated.addListener((tabId,change) => {
+  capturedTabMuted(tabId,change).catch(error => chrome.storage.local.set({lastError:`分頁音訊處理失敗：${error.message}`}));
+});

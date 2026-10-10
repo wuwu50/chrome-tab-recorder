@@ -3,8 +3,8 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8');
-function setup({captureFails = false,saveFails = false,settingsOverride = null} = {}) {
-  let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0;
+function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false} = {}) {
+  let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0, speakerConnections = 0;
   const tracks = ['video','audio'].map(kind => ({kind,stop(){stopped++},addEventListener(name,fn){this.ended = fn}}));
   tracks[0].getSettings = () => settingsOverride || ({width:constraints?.video.mandatory.maxWidth || 1280,height:constraints?.video.mandatory.maxHeight || 720,frameRate:constraints?.video.mandatory.maxFrameRate || 30});
   const stream = {getTracks:()=>tracks,getVideoTracks:()=>[tracks[0]],getAudioTracks:()=>[tracks[1]]};
@@ -18,15 +18,16 @@ function setup({captureFails = false,saveFails = false,settingsOverride = null} 
   }
   const context = vm.createContext({
     chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn}},async sendMessage(m){
+      if(m.type==='prepare-audio')return {ok:true,data:{originallyMuted:tabMuted}};
       if(m.type==='save-file'){downloads++;if(saveFails)return {ok:false,error:'cancelled'};return {ok:true,data:{downloadId:7}}}return {ok:true};
     }}},
     navigator:{storage:{getDirectory:async()=>root},mediaDevices:{async getUserMedia(c){constraints=c;if(captureFails)throw Error('denied');return stream}}},
-    MediaRecorder:Recorder,AudioContext:class{createMediaStreamSource(){return {connect(){}}}destination={};async resume(){}async close(){}},
+    MediaRecorder:Recorder,AudioContext:class{createMediaStreamSource(){return {connect(){speakerConnections++}}}destination={};async resume(){}async close(){}},
     URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Date,Promise,console
   });
   vm.runInContext(source,context);
   const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,...extra},{id:'test'},resolve));
-  return {command,tracks,get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,encoding:Recorder.instance?.options}}};
+  return {command,tracks,get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,speakerConnections,encoding:Recorder.instance?.options}}};
 }
 async function until(test,phase) {
   for(let i=0;i<100;i++){const s=await test.command('status');if(s.data.phase===phase)return s.data;await new Promise(r=>setTimeout(r,5))}
@@ -37,6 +38,8 @@ async function until(test,phase) {
   assert((await t.command('start',{streamId:'tab-123',title:'video'})).ok);
   assert.equal(t.stats.constraints.audio.mandatory.chromeMediaSource,'tab');
   assert.equal(t.stats.constraints.video.mandatory.chromeMediaSourceId,'tab-123');
+  assert.equal(t.stats.speakerConnections,0,'silent mode must not connect tab audio to speakers');
+  assert.equal(t.tracks[1].enabled,undefined,'silent mode must not disable recorded audio track');
   assert(!(await t.command('start',{streamId:'other'})).ok,'must prevent concurrent capture');
   assert((await t.command('stop')).ok);
   const saved = await until(t,'downloading');
@@ -80,5 +83,14 @@ async function until(test,phase) {
   assert(!rejected.ok,'must not silently claim 120 FPS when Chrome reports 60');
   assert.equal(limited.stats.stopped,2);
   assert.equal(limited.stats.aborted,1);
+  const audible=setup();
+  const listen=await audible.command('start',{streamId:'listen',monitorAudio:true});
+  assert(listen.ok);
+  assert.equal(audible.stats.speakerConnections,1,'explicit monitoring routes the tab stream to speakers');
+  await audible.command('stop');await until(audible,'downloading');
+  const originallyMuted=setup({tabMuted:true});
+  assert((await originallyMuted.command('start',{streamId:'muted',monitorAudio:true})).ok);
+  assert.equal(originallyMuted.stats.speakerConnections,0,'muted tab must stay silent even if monitoring was selected');
+  await originallyMuted.command('stop');await until(originallyMuted,'downloading');
   console.log('PASS: tab-only media, concurrent guard, final chunk flush, track cleanup, download retry, temp cleanup, target closed, acquisition failure.');
 })().catch(error=>{console.error(error);process.exitCode=1});
