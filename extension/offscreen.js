@@ -4,6 +4,11 @@ let writes = Promise.resolve();
 let writeError = null;
 let stopping = null;
 let filename;
+let journal, queuedBytes = 0, assembled = false;
+let diskFailed = false;
+let lastDiagnostic = 0;
+const maxQueuedBytes = 64 * 1048576;
+const diskReserve = 256 * 1048576;
 const tempName = 'recording.tmp';
 const mimeTypes = ['video/mp4;codecs=avc1,mp4a.40.2','video/mp4'];
 const profiles = {
@@ -14,6 +19,35 @@ const profiles = {
 function notify() {
   chrome.runtime.sendMessage({target:'background',type:'state',phase:state.phase,error:state.error || ''}).catch(() => {});
 }
+function diagnostic(reason) {
+  chrome.runtime.sendMessage({target:'background',type:'diagnostic',entry:{time:new Date().toISOString(),reason,phase:state.phase,bytes:state.bytes,queuedBytes,captureFormat:state.captureFormat || '',requestedFps:state.requestedFps || 0}}).catch(() => {});
+}
+async function checkSpace(extra = 0) {
+  if (!navigator.storage.estimate) return;
+  const {usage,quota} = await navigator.storage.estimate();
+  // Reserve room for assembling the MP4 while its durable chunks still exist.
+  if (Number.isFinite(quota) && Number.isFinite(usage) && quota - usage < state.bytes + extra * 2 + diskReserve) throw new Error('Chrome 暫存空間不足，已停止以保留先前片段。請釋放磁碟空間後重新儲存影片。');
+}
+async function assemble() {
+  if (assembled) return;
+  if (!journal?.meta?.count) throw new Error('沒有可取回的錄影片段。');
+  await checkSpace();
+  fileHandle ||= await root.getFileHandle(tempName,{create:true});
+  writer ||= await fileHandle.createWritable();
+  try { await journal.assemble(writer); await writer.close(); writer = null; assembled = true; }
+  catch (error) { await writer.abort().catch(() => {}); writer = null; throw error; }
+}
+const initialized = (async () => {
+  try {
+    root = await navigator.storage.getDirectory(); journal = new RecordingJournal(root);
+    const meta = await journal.read();
+    if (!meta) return;
+    if (!meta.count) { await journal.remove(); return; }
+    filename = meta.filename;
+    state = {phase:'ready',bytes:meta.bytes,startedAt:meta.startedAt,endedAt:meta.endedAt || Date.now(),captureFormat:meta.captureFormat,requestedFps:meta.requestedFps,error:meta.complete ? '找到尚未儲存的影片，請按「重新儲存影片」。' : '上次錄影意外中斷，已保留寫入的片段。請嘗試重新儲存；尾段可能不完整，無法保證可播放。'};
+    diagnostic(state.error); notify();
+  } catch (error) { state = {phase:'ready',bytes:0,error:`暫存取回失敗：${error.message}`}; diagnostic(state.error); notify(); }
+})();
 async function releaseMedia() {
   if (media) {
     const restored = await chrome.runtime.sendMessage({target:'background',type:'restore-audio'}).catch(() => null);
@@ -28,7 +62,9 @@ async function discard() {
   if (blobUrl) URL.revokeObjectURL(blobUrl);
   blobUrl = null;
   if (root) await root.removeEntry(tempName).catch(() => {});
+  if (journal) await journal.remove();
   fileHandle = null;
+  assembled = false;
   state = {phase:'idle',bytes:0};
   notify();
 }
@@ -42,6 +78,7 @@ async function start(message) {
     root = await navigator.storage.getDirectory();
     fileHandle = await root.getFileHandle(tempName,{create:true});
     writer = await fileHandle.createWritable();
+    assembled = false; queuedBytes = 0; diskFailed = false; lastDiagnostic = Date.now();
     writes = Promise.resolve();
     writeError = null;
     stopping = null;
@@ -73,31 +110,46 @@ async function start(message) {
     if (!recorder.mimeType.toLowerCase().startsWith('video/mp4')) throw new Error('編碼器未使用 MP4，已取消錄影。');
     const stamp = new Date().toLocaleString('sv-SE').replace(/[^0-9]/g,'');
     filename = `分頁錄影-${stamp}.mp4`;
+    await checkSpace();
+    await journal.begin({filename,startedAt:Date.now(),captureFormat:state.captureFormat,requestedFps:state.requestedFps});
     recorder.ondataavailable = event => {
       if (!event.data.size) return;
+      if (writeError) return;
+      if (queuedBytes + event.data.size > maxQueuedBytes) {
+        writeError = new Error('待寫入資料超過 64 MB，磁碟或編碼器可能跟不上錄影速度。');
+        state.error = `${writeError.message} 已停止並嘗試儲存先前片段；尾段可能不完整。`;
+        diagnostic(state.error); stop().catch(() => {}); return;
+      }
+      queuedBytes += event.data.size;
       writes = writes.then(async () => {
-        if (writeError) return;
-        await writer.write(event.data);
+        if (diskFailed) return;
+        await checkSpace(event.data.size);
+        await journal.append(event.data);
         state.bytes += event.data.size;
+        if (Date.now() - lastDiagnostic >= 60000) { lastDiagnostic = Date.now(); diagnostic('錄影進度'); }
       }).catch(error => {
+        diskFailed = true;
         writeError = error;
         state.error = `暫存寫入失敗：${error.message}；已寫入的部分會嘗試儲存。`;
+        diagnostic(state.error);
         stop().catch(() => {});
-      });
+      }).finally(() => { queuedBytes -= event.data.size; });
     };
     recorder.onerror = event => {
       state.error = `編碼失敗：${event.error?.message || '未知原因'}；嘗試儲存已錄製的部分。`;
+      diagnostic(state.error);
       stop().catch(() => {});
     };
     // Assign before start, so automatically ended captures also finalize the file.
     recorder.onstop = () => finalize().catch(error => {
-      state.phase = 'error'; state.error = error.message; notify();
+      state.phase = 'ready'; state.error = `完成影片失敗：${error.message}。片段仍保留，請重新儲存或匯出錯誤紀錄。`; diagnostic(state.error); notify();
     });
     for (const track of media.getTracks()) track.addEventListener('ended',() => {
       if (state.phase === 'recording') stop().catch(() => {});
     });
-    recorder.start(1000);
+    recorder.start(5000);
     state.phase = 'recording'; state.startedAt = Date.now();
+    diagnostic('開始錄影');
     notify();
     return {...state};
   } catch (error) {
@@ -105,6 +157,7 @@ async function start(message) {
     if (writer) await writer.abort().catch(() => {});
     writer = null;
     state.phase = 'error'; state.error = `無法開始錄影：${error.message}`;
+    diagnostic(state.error);
     notify();
     throw new Error(state.error);
   }
@@ -123,8 +176,13 @@ async function finalize() {
     state.phase = 'saving'; state.endedAt ||= Date.now(); notify();
     await releaseMedia();
     await writes;
-    await writer.close(); writer = null;
+    state.bytes = journal.meta.bytes;
+    journal.meta.complete = !writeError && !state.error;
+    journal.meta.endedAt = state.endedAt;
+    await journal.saveMeta();
+    await assemble();
     state.phase = 'ready'; notify();
+    diagnostic(state.error || '錄影已完成');
     if (!state.bytes) { state.error = '沒有錄到影片資料。'; notify(); return; }
     await download();
   })();
@@ -132,20 +190,23 @@ async function finalize() {
 }
 async function download() {
   if (state.phase !== 'ready') throw new Error('影片尚未準備好，請稍候。');
+  state.phase = 'saving'; notify();
+  try {
+  await assemble();
   const file = await fileHandle.getFile();
   if (!file.size) throw new Error('暫存影片是空的，請刪除並重新錄影。');
   if (blobUrl) URL.revokeObjectURL(blobUrl);
   blobUrl = URL.createObjectURL(file);
   state.phase = 'downloading'; notify();
-  try {
     const response = await chrome.runtime.sendMessage({target:'background',type:'save-file',url:blobUrl,filename});
     if (!response?.ok) throw new Error(response?.error || '無法儲存影片。');
   } catch (error) {
-    state.phase = 'ready'; state.error = `儲存未完成：${error.message}。請按「重新儲存影片」。`; notify();
+    state.phase = 'ready'; state.error = `儲存未完成：${error.message}。請按「重新儲存影片」。`; diagnostic(state.error); notify();
   }
   return {...state};
 }
 async function handle(message) {
+  await initialized;
   switch (message.type) {
     case 'monitor-off':
       if (audio) { await audio.close(); audio = null; }

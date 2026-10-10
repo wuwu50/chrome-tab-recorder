@@ -1,11 +1,24 @@
 {
   "manifest_version": 3,
   "name": "分頁影音錄影機",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "錄製選定 Chrome 分頁的影音，背景錄製，不擷取麥克風或其他分頁。",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "tabCapture", "offscreen", "downloads", "storage"],
-  "optional_host_permissions": ["https://*/*"],
-  "background": {"service_worker": "background.js"},
-  "action": {"default_popup": "popup.html", "default_title": "分頁影音錄影機"}
+  "permissions": [
+    "activeTab",
+    "tabCapture",
+    "offscreen",
+    "downloads",
+    "storage"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "分頁影音錄影機"
+  }
 }

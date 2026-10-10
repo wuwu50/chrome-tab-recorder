@@ -103,6 +103,15 @@ async function run(type,extra={}) {
 $('start').addEventListener('click',()=>run('start',{tabId:target?.id,quality:$('quality').value,monitorAudio:$('monitor-audio').checked}));
 $('stop').addEventListener('click',()=>run('stop'));
 $('retry').addEventListener('click',()=>run('download'));
+$('diagnostics').disabled = preview;
+$('diagnostics').addEventListener('click',async()=>{
+  try {
+    const report = await command('diagnostics');
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));
+    const link = document.createElement('a'); link.href = url; link.download = '錄影機錯誤紀錄.json'; link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+  } catch (error) { localError = error.message; render(); }
+});
 $('discard').addEventListener('click',()=>{if(confirm('確定刪除尚未儲存的暫存影片？'))run('discard')});
 $('locate').addEventListener('click',async()=>{
   try {
@@ -120,6 +129,6 @@ if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.6.1';
+  $('version').textContent = 'v1.7.0';
   updateButtons();
 } else { refresh(); loadUpdateSettings(); setInterval(refresh,1000); }

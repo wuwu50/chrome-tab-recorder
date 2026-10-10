@@ -1,13 +1,22 @@
 importScripts('updates.js','audio-routing.js');
 let starting = false;
+let creating = null;
+let diagnosticWrites = Promise.resolve();
 async function contexts() {
   return chrome.runtime.getContexts({contextTypes:['OFFSCREEN_DOCUMENT'],documentUrls:[chrome.runtime.getURL('offscreen.html')]});
 }
 async function ensureOffscreen() {
-  if (!(await contexts()).length) await chrome.offscreen.createDocument({
+  if (creating) return creating;
+  creating = (async () => {
+  if (!(await contexts()).length) {
+    await restoreCapturedAudio();
+    await chrome.offscreen.createDocument({
     url:'offscreen.html', reasons:['USER_MEDIA','BLOBS'],
     justification:'擷取使用者指定分頁的影音，在背景錄影並儲存本機影片。'
   });
+  }
+  })();
+  try { await creating; } finally { creating = null; }
 }
 async function offscreen(type, extra = {}) {
   const response = await chrome.runtime.sendMessage({target:'offscreen',type,...extra});
@@ -40,11 +49,23 @@ async function handle(message) {
     case 'panel-target':
       return (await chrome.storage.session.get('panelTarget')).panelTarget || null;
     case 'status': {
-      if (!(await contexts()).length) {
-        const saved = (await chrome.storage.local.get('lastError')).lastError;
-        return {phase:'idle',error:saved || ''};
-      }
-      return offscreen('status');
+      await ensureOffscreen();
+      const result = await offscreen('status');
+      if (!result.error) result.error = (await chrome.storage.local.get('lastError')).lastError || '';
+      return result;
+    }
+    case 'diagnostics':
+      await diagnosticWrites;
+      return {version:chrome.runtime.getManifest().version,exportedAt:new Date().toISOString(),entries:(await chrome.storage.local.get('diagnostics')).diagnostics || []};
+    case 'diagnostic': {
+      const entry = message.entry || {};
+      // Keep only recording metrics and errors; never store page titles or URLs.
+      const clean = {time:String(entry.time || ''),reason:String(entry.reason || '').slice(0,2000),phase:String(entry.phase || ''),bytes:Number(entry.bytes) || 0,queuedBytes:Number(entry.queuedBytes) || 0,captureFormat:String(entry.captureFormat || ''),requestedFps:Number(entry.requestedFps) || 0};
+      diagnosticWrites = diagnosticWrites.catch(() => {}).then(async () => {
+        const entries = (await chrome.storage.local.get('diagnostics')).diagnostics || [];
+        await chrome.storage.local.set({diagnostics:[...entries,clean].slice(-40)});
+      });
+      await diagnosticWrites; return null;
     }
     case 'start': {
       if (starting) throw new Error('正在準備錄製，請稍候。');
