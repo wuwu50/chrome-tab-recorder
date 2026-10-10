@@ -1,7 +1,7 @@
 {
-  "version": "1.6.1",
-  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.6.1/ChromeTabRecorder-1.6.1-Setup.exe",
-  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.6.1/ChromeTabRecorder-1.6.1.zip",
-  "notes": "v1.6.1 改為固定輸出 MP4 影片，優先使用 H.264／AAC。移除 WebM 備援；若 Chrome 沒有可用 MP4 編碼器，會在開始前明確提示更新 Chrome。不會把其他格式改名為 .mp4。\n\n舊版尚未包含此更新器，因此需先手動安裝 v1.6.0 一次。之後可在軟體內確認更新，自動完成下載與安裝。Chrome 可能顯示開啟外部應用程式的確認視窗。升級前停止錄影並儲存，安裝後到 Chrome 擴充功能頁重新載入。\n\n如果在錄影途中使用 Chrome 靜音，程式會關閉喇叭監聽並維持錄音，停止時恢復靜音。本功能只處理錄製分頁，不修改網站全域音訊政策。播放器內部静音或音量 0 沒有可恢復的輸出，請保持播放器有聲音。Chrome 崩潰或強制重新載入時無法保證恢復分頁狀態，請自行確認。\n\n120 FPS 是擷取與編碼的目標，不代表每秒都有 120 個不同畫面。網頁來源、Chrome 與硬體可能限制實際更新與編碼速度；60 FPS 影片不能變成真正的 120 FPS 內容。最小化可能降幀，需實測。1080p 不會增加低畫質來源的細節。\n\n網站可能在最小化後暫停更新；請先短錄測試。更新需手動替換檔案與重新載入；先停止錄影並儲存。\n",
-  "sha256": "7b8f9575581ca81f33c7bce143910d7b395d7167451dca0b70b3e9526ed823f9"
+  "version": "1.7.0",
+  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.7.0/ChromeTabRecorder-1.7.0-Setup.exe",
+  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.7.0/ChromeTabRecorder-1.7.0.zip",
+  "notes": "v1.7.0 加入長時間錄影保護與中斷取回：\n\n- 錄影片段約每 5 秒完成本機寫入，重開控制視窗可嘗試取回已寫入資料；意外中斷的 MP4 可能不完整，無法保證可播放。\n- 限制待寫入資料為 64 MB，超過上限或估計暫存空間不足時停止並嘗試儲存先前片段。\n- 新增「匯出錯誤紀錄」，包含版本、錄影設定、資料量與最近事件，不會自動上傳。\n- 維持指定分頁影音、安靜錄音、1080p／120 FPS 選項及 MP4 輸出。長錄建議先使用 1080p／60 FPS 測試。\n\n已驗證模擬中斷取回、待寫入上限、空間不足處理與實際 Chrome MP4 逐段寫入／組合／播放；尚未重現使用者的半小時 1080p／120 FPS 停止問題，不能保證本次已消除其原因。\n\nWindows 安裝版可在程式內確認更新後自動安裝。更新前先停止錄影並儲存；安裝後到 Chrome 擴充功能頁重新載入。舊版崩潰前未完成的暫存無法保證取回。\n",
+  "sha256": "abf1a767c338a2f5c49cef18cd0cb2725d54d27ffa53fa8d7a1020716d5cd0bc"
 }
