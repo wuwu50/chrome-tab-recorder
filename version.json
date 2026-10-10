@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0",
-  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.4.0/ChromeTabRecorder-1.4.0-Setup.exe",
-  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.4.0/ChromeTabRecorder-1.4.0.zip",
-  "notes": "v1.4.0 新增 1920×1080／120 FPS（32 Mbps）與 1920×1080／60 FPS（16 Mbps）錄影設定。控制介面顯示 Chrome 回報的擷取設定；若不能取得所選設定會明確報錯，不默默降為 30／60 FPS。\n\nWindows：下載 ChromeTabRecorder-1.4.0-Setup.exe。升級前停止錄影並儲存，安裝後到 Chrome 擴充功能頁重新載入。\n\n120 FPS 是擷取與編碼的目標，不代表每秒都有 120 個不同畫面。網頁來源、Chrome 與硬體可能限制實際更新與編碼速度；60 FPS 影片不能變成真正的 120 FPS 內容。最小化可能降幀，需實測。1080p 不會增加低畫質來源的細節。\n\n網站可能在最小化後暫停更新；請先短錄測試。更新需手動替換檔案與重新載入；先停止錄影並儲存。\n"
+  "version": "1.5.0",
+  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.5.0/ChromeTabRecorder-1.5.0-Setup.exe",
+  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.5.0/ChromeTabRecorder-1.5.0.zip",
+  "notes": "v1.5.0 新增安靜錄影模式：分頁音訊照常錄入，不播放到喇叭。支援在 Chrome 分頁／網站靜音時開始錄影：擷取建立後，暫時解除錄製分頁的靜音，停止時恢復。\n\nWindows：下載 ChromeTabRecorder-1.5.0-Setup.exe。升級前停止錄影並儲存，安裝後到 Chrome 擴充功能頁重新載入。\n\n如果在錄影途中使用 Chrome 靜音，程式會關閉喇叭監聽並維持錄音，停止時恢復靜音。本功能只處理錄製分頁，不修改網站全域音訊政策。播放器內部静音或音量 0 沒有可恢復的輸出，請保持播放器有聲音。Chrome 崩潰或強制重新載入時無法保證恢復分頁狀態，請自行確認。\n\n120 FPS 是擷取與編碼的目標，不代表每秒都有 120 個不同畫面。網頁來源、Chrome 與硬體可能限制實際更新與編碼速度；60 FPS 影片不能變成真正的 120 FPS 內容。最小化可能降幀，需實測。1080p 不會增加低畫質來源的細節。\n\n網站可能在最小化後暫停更新；請先短錄測試。更新需手動替換檔案與重新載入；先停止錄影並儲存。\n"
 }
