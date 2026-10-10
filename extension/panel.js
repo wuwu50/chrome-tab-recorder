@@ -3,6 +3,33 @@ const preview = new URLSearchParams(location.search).has('demo');
 let target = null, state = {phase:'idle'}, busy = false, localError = '';
 let updateBusy = false;
 let configuredUpdateSource = '';
+let folderHandle = null, folderLoading = !preview;
+async function loadFolder() {
+  try {
+    folderHandle = await OutputFolder.stored();
+    $('folder-name').textContent = folderHandle ? `儲存至：${folderHandle.name}` : '尚未設定：使用 Chrome 下載方式';
+    if (folderHandle) await OutputFolder.authorized(folderHandle);
+    $('folder-status').textContent = folderHandle ? '錄影完成後自動儲存 MP4，不再詢問存檔位置。' : '選擇一次資料夾，之後直接存入此處。';
+  } catch (error) { $('folder-status').textContent = error.message; }
+  finally { folderLoading = false; render(); }
+}
+$('choose-folder').addEventListener('click',async()=>{
+  if (busy || folderLoading || !['idle','error','ready'].includes(state.phase)) return;
+  busy = true; render();
+  try {
+    const selected = await window.showDirectoryPicker({id:'recorder-output',mode:'readwrite',startIn:'videos'});
+    await OutputFolder.stored(selected,true);
+    await loadFolder();
+  } catch (error) { if (error.name !== 'AbortError') localError = `資料夾設定失敗：${error.message}`; }
+  finally { busy = false; render(); }
+});
+$('allow-folder').addEventListener('click',async()=>{
+  if (busy || folderLoading || !['idle','error','ready'].includes(state.phase)) return;
+  busy = true; render();
+  try { await OutputFolder.authorized(folderHandle,true); await loadFolder(); localError = ''; }
+  catch (error) { localError = error.message; }
+  finally { busy = false; render(); }
+});
 const officialUpdateSource = 'https://raw.githubusercontent.com/wuwu50/chrome-tab-recorder/main/version.json';
 function nativeUpdateAvailable() { return navigator.userAgent.includes('Windows') && configuredUpdateSource === officialUpdateSource; }
 function updateMessage(text,isError=false) {
@@ -89,7 +116,10 @@ function render() {
   $('update-install').classList.toggle('disabled-link',recording || busy);
   $('title').textContent = (recording ? state.title : target?.title) || '尚未選擇錄製分頁';
   $('site').textContent = recording && state.tabId !== target?.id ? '已固定錄製目標' : (target?.url || '在目標分頁開啟此控制視窗');
-  $('start').disabled = preview || busy || recording || !target;
+  $('start').disabled = preview || busy || folderLoading || recording || !target;
+  $('choose-folder').disabled = preview || busy || folderLoading || !['idle','error','ready'].includes(state.phase);
+  $('allow-folder').hidden = !folderHandle;
+  $('allow-folder').disabled = $('choose-folder').disabled;
   $('stop').disabled = preview || busy || !['recording','rotating'].includes(state.phase);
   $('quality').disabled = preview || busy || recording;
   $('monitor-audio').disabled = preview || busy || recording;
@@ -112,9 +142,17 @@ async function run(type,extra={}) {
   catch (error) { localError = error.message; }
   finally { busy = false; await refresh(); }
 }
-$('start').addEventListener('click',()=>run('start',{tabId:target?.id,quality:$('quality').value,monitorAudio:$('monitor-audio').checked}));
+$('start').addEventListener('click',async()=>{
+  try { await OutputFolder.authorized(folderHandle,true); }
+  catch (error) { localError = error.message; render(); return; }
+  return run('start',{tabId:target?.id,quality:$('quality').value,monitorAudio:$('monitor-audio').checked});
+});
 $('stop').addEventListener('click',()=>run('stop'));
-$('retry').addEventListener('click',()=>run('download'));
+$('retry').addEventListener('click',async()=>{
+  try { await OutputFolder.authorized(folderHandle,true); }
+  catch (error) { localError = error.message; render(); return; }
+  return run('download');
+});
 $('diagnostics').disabled = preview;
 $('diagnostics').addEventListener('click',async()=>{
   try {
@@ -143,6 +181,6 @@ if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.9.0';
+  $('version').textContent = 'v1.10.0';
   updateButtons();
-} else { refresh(); loadUpdateSettings(); setInterval(refresh,1000); }
+} else { refresh(); loadFolder(); loadUpdateSettings(); setInterval(refresh,1000); }

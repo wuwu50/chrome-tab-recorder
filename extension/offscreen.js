@@ -8,7 +8,7 @@ let journal, queuedBytes = 0, assembled = false;
 let diskFailed = false;
 let lastDiagnostic = 0;
 let stopRequested = false, rotating = false, recorderOptions;
-let partStartedAt = 0;
+let partStartedAt = 0, outputDirectory = null;
 const maxQueuedBytes = 64 * 1048576;
 // Chromium's MP4 OutputPositionTracker is uint32_t and CHECKs on overflow.
 // Restart the muxer well before 4 GiB, while keeping the same captured tab.
@@ -84,6 +84,7 @@ async function start(message) {
   state = {phase:'starting',bytes:0,title:message.title,tabId:message.tabId,segmented:true,partNumber:1,partBytes:0,savedParts:0};
   notify();
   try {
+    outputDirectory = await OutputFolder.authorized(await OutputFolder.stored());
     const mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
     if (!mimeType) throw new Error('此 Chrome 沒有可用的 MP4 編碼器，請更新 Chrome 後再錄影。');
     root = await navigator.storage.getDirectory();
@@ -233,6 +234,15 @@ async function download() {
   await assemble();
   const file = await fileHandle.getFile();
   if (!file.size) throw new Error('暫存影片是空的，請刪除並重新錄影。');
+  // Re-read persisted settings for recovery and retries after folder reauthorization.
+  outputDirectory = await OutputFolder.authorized(await OutputFolder.stored());
+  if (outputDirectory) {
+    const part = journal.parts()[journal.meta.downloaded || 0];
+    await OutputFolder.save(outputDirectory,part.filename,file);
+    diagnostic('MP4 已直接存入設定資料夾');
+    await discardAfterDownload();
+    return {...state};
+  }
   if (blobUrl) URL.revokeObjectURL(blobUrl);
   blobUrl = URL.createObjectURL(file);
   state.phase = 'downloading'; notify();
