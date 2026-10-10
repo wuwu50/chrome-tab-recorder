@@ -5,7 +5,7 @@ let writeError = null;
 let stopping = null;
 let filename;
 const tempName = 'recording.tmp';
-const mimeTypes = ['video/mp4','video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm'];
+const mimeTypes = ['video/mp4;codecs=avc1,mp4a.40.2','video/mp4'];
 const profiles = {
   normal:{fps:30,bitrate:4000000},high:{fps:30,bitrate:8000000},
   '1080p60':{width:1920,height:1080,fps:60,bitrate:16000000},
@@ -37,6 +37,8 @@ async function start(message) {
   state = {phase:'starting',bytes:0,title:message.title,tabId:message.tabId};
   notify();
   try {
+    const mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+    if (!mimeType) throw new Error('此 Chrome 沒有可用的 MP4 編碼器，請更新 Chrome 後再錄影。');
     root = await navigator.storage.getDirectory();
     fileHandle = await root.getFileHandle(tempName,{create:true});
     writer = await fileHandle.createWritable();
@@ -67,11 +69,10 @@ async function start(message) {
       audio.createMediaStreamSource(media).connect(audio.destination);
       await audio.resume();
     }
-    const mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
-    if (!mimeType) throw new Error('這個 Chrome 版本沒有可用的影片編碼器。');
     recorder = new MediaRecorder(media,{mimeType,videoBitsPerSecond:profile.bitrate,audioBitsPerSecond:192000});
+    if (!recorder.mimeType.toLowerCase().startsWith('video/mp4')) throw new Error('編碼器未使用 MP4，已取消錄影。');
     const stamp = new Date().toLocaleString('sv-SE').replace(/[^0-9]/g,'');
-    filename = `分頁錄影-${stamp}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`;
+    filename = `分頁錄影-${stamp}.mp4`;
     recorder.ondataavailable = event => {
       if (!event.data.size) return;
       writes = writes.then(async () => {

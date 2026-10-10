@@ -3,7 +3,7 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8');
-function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false} = {}) {
+function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false,mp4Supported = true} = {}) {
   let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0, speakerConnections = 0;
   const tracks = ['video','audio'].map(kind => ({kind,stop(){stopped++},addEventListener(name,fn){this.ended = fn}}));
   tracks[0].getSettings = () => settingsOverride || ({width:constraints?.video.mandatory.maxWidth || 1280,height:constraints?.video.mandatory.maxHeight || 720,frameRate:constraints?.video.mandatory.maxFrameRate || 30});
@@ -11,8 +11,8 @@ function setup({captureFails = false,saveFails = false,settingsOverride = null,t
   const writer = {async write(blob){await new Promise(r=>setTimeout(r,5));writes.push(blob)},async close(){closed=true},async abort(){aborted++}};
   const root = {async getFileHandle(){return {async createWritable(){return writer},async getFile(){assert(closed,'download before file close');return new Blob(writes)}}},async removeEntry(){removed++}};
   class Recorder {
-    static isTypeSupported(type){return type.includes('webm')}
-    constructor(media,options){this.state='inactive';this.options=options;Recorder.instance=this}
+    static isTypeSupported(type){return mp4Supported && type.startsWith('video/mp4')}
+    constructor(media,options){this.state='inactive';this.options=options;this.mimeType=options.mimeType;Recorder.instance=this}
     start(){this.state='recording';this.ondataavailable({data:new Blob(['first'])})}
     stop(){assert.equal(this.state,'recording');this.state='inactive';queueMicrotask(()=>{this.ondataavailable({data:new Blob(['last'])});this.onstop()})}
   }
@@ -38,6 +38,7 @@ async function until(test,phase) {
   assert((await t.command('start',{streamId:'tab-123',title:'video'})).ok);
   assert.equal(t.stats.constraints.audio.mandatory.chromeMediaSource,'tab');
   assert.equal(t.stats.constraints.video.mandatory.chromeMediaSourceId,'tab-123');
+  assert(t.stats.encoding.mimeType.startsWith('video/mp4'));
   assert.equal(t.stats.speakerConnections,0,'silent mode must not connect tab audio to speakers');
   assert.equal(t.tracks[1].enabled,undefined,'silent mode must not disable recorded audio track');
   assert(!(await t.command('start',{streamId:'other'})).ok,'must prevent concurrent capture');
@@ -92,5 +93,9 @@ async function until(test,phase) {
   assert((await originallyMuted.command('start',{streamId:'muted',monitorAudio:true})).ok);
   assert.equal(originallyMuted.stats.speakerConnections,0,'muted tab must stay silent even if monitoring was selected');
   await originallyMuted.command('stop');await until(originallyMuted,'downloading');
+  const unsupported=setup({mp4Supported:false});
+  const noMp4=await unsupported.command('start',{streamId:'not-used'});
+  assert(!noMp4.ok && noMp4.error.includes('MP4'));
+  assert.equal(unsupported.stats.constraints,undefined,'reject before any capture or mute change');
   console.log('PASS: tab-only media, concurrent guard, final chunk flush, track cleanup, download retry, temp cleanup, target closed, acquisition failure.');
 })().catch(error=>{console.error(error);process.exitCode=1});
