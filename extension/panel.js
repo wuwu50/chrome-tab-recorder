@@ -3,6 +3,8 @@ const preview = new URLSearchParams(location.search).has('demo');
 let target = null, state = {phase:'idle'}, busy = false, localError = '';
 let updateBusy = false;
 let configuredUpdateSource = '';
+const officialUpdateSource = 'https://raw.githubusercontent.com/wuwu50/chrome-tab-recorder/main/version.json';
+function nativeUpdateAvailable() { return navigator.userAgent.includes('Windows') && configuredUpdateSource === officialUpdateSource; }
 function updateMessage(text,isError=false) {
   $('update-status').textContent = text;
   $('update-status').dataset.error = String(isError);
@@ -20,10 +22,12 @@ async function loadUpdateSettings() {
     $('version').textContent = `v${settings.currentVersion}`;
     $('update-source').value = settings.url;
     configuredUpdateSource = settings.url;
+    updateButtons();
     updateMessage(settings.url ? '按「檢查更新」取得最新版本資訊' : '尚未設定更新來源');
   } catch(error) { updateMessage(error.message,true); }
 }
 function updateButtons() {
+  $('check-update').textContent = nativeUpdateAvailable() ? '↻ 更新並自動安裝' : '↻ 檢查更新';
   $('check-update').disabled = $('save-update-source').disabled = $('update-source').disabled = preview || updateBusy;
 }
 $('save-update-source').addEventListener('click',async()=>{
@@ -41,6 +45,12 @@ $('save-update-source').addEventListener('click',async()=>{
   finally { updateBusy = false; updateButtons(); }
 });
 $('check-update').addEventListener('click',async()=>{
+  if (nativeUpdateAvailable()) {
+    if (busy || !['idle','error'].includes(state.phase)) { updateMessage('請先停止錄影並完成儲存，才能安裝更新。',true); return; }
+    // Launch directly from the click so Chrome retains the user's activation.
+    // The native updater checks, confirms, downloads and installs; no web download.
+    $('update-install').click(); return;
+  }
   updateBusy = true; updateButtons(); clearUpdateResult(); updateMessage('正在檢查更新…');
   try {
     if (configuredUpdateSource && !(await chrome.permissions.request({origins:[updateHostPattern(updateHttpsUrl(configuredUpdateSource))]}))) throw new Error('未允許連線，無法檢查更新。');
@@ -49,7 +59,8 @@ $('check-update').addEventListener('click',async()=>{
       updateMessage(`有新版本 v${result.latestVersion}（目前 v${result.currentVersion}）`);
       $('update-download').href = updateHttpsUrl(result.downloadUrl).href;
       $('update-download').hidden = false;
-      $('update-install').hidden = !navigator.userAgent.includes('Windows');
+      $('update-install').hidden = true;
+      updateMessage(`有新版本 v${result.latestVersion}（目前 v${result.currentVersion}）；自訂來源請展開「設定更新來源／手動下載」。`);
       if (result.notes) { $('update-notes').textContent = result.notes; $('update-notes').hidden = false; }
     } else {
       updateMessage(result.sourceBehind ? `更新來源版本 v${result.latestVersion} 比目前版本舊，沒有可更新版本。` : `目前已是最新版本 v${result.currentVersion}`);
@@ -124,12 +135,14 @@ $('locate').addEventListener('click',async()=>{
 $('update-install').addEventListener('click',event=>{
   if (busy || !['idle','error'].includes(state.phase)) {
     event.preventDefault();updateMessage('請先停止錄影並完成儲存，才能安裝更新。',true);
+  } else {
+    updateMessage('已呼叫自動更新器，請在更新視窗確認安裝。會自動下載並沿用原本位置，不需要選擇 EXE 或資料夾。若沒有開啟，請使用桌面錄影機的「檢查更新並安裝」。');
   }
 });
 if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.8.0';
+  $('version').textContent = 'v1.9.0';
   updateButtons();
 } else { refresh(); loadUpdateSettings(); setInterval(refresh,1000); }

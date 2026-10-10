@@ -8,6 +8,15 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 static class Updater {
+  public static Form CreateWindow() {
+    Form form=new Form { Text="分頁影音錄影機 · 自動更新",ClientSize=new System.Drawing.Size(540,210),StartPosition=FormStartPosition.CenterScreen,Font=new System.Drawing.Font("Microsoft JhengHei",10),FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false };
+    Label description=new Label { Text="確認新版後，自動下載、驗證並安裝到原本位置。\r\n不需要選擇 EXE 檔或資料夾。\r\n\r\n安裝後只需在 Chrome 擴充功能頁按「重新載入」。\r\n不要再次按「載入未封裝項目」。",Dock=DockStyle.Top,Height=140,Padding=new Padding(16) };
+    Button update=new Button { Text="檢查更新並安裝",Dock=DockStyle.Bottom,Height=45 };
+    form.Controls.Add(description);form.Controls.Add(update);
+    update.Click += async delegate { await Run(form,update); };
+    form.Shown += async delegate { await Run(form,update); };
+    return form;
+  }
   public static string InstallArguments(string installDir) {
     return "/SP- /SILENT /NORESTART /DIR=\"" + Path.GetFullPath(installDir).TrimEnd(Path.DirectorySeparatorChar) + "\"";
   }
