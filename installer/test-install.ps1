@@ -7,8 +7,16 @@ $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SU
 if ($process.ExitCode -ne 0) { throw "Installer exit: $($process.ExitCode)" }
 $installed = Get-Content -LiteralPath (Join-Path $testDir 'extension/manifest.json') -Raw | ConvertFrom-Json
 if ($installed.version -ne $version) { throw 'Installed version mismatch.' }
+$marker = Join-Path $testDir 'keep-user-file.txt'
+Set-Content -LiteralPath $marker -Value 'preserve' -Encoding utf8
+$upgrade = Start-Process -FilePath $installer -ArgumentList @('/SP-','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="' + $testDir + '"')) -WindowStyle Hidden -Wait -PassThru
+if ($upgrade.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $marker)) { throw 'In-place upgrade did not preserve the installed location and existing files.' }
 $launcher = Start-Process -FilePath (Join-Path $testDir 'ChromeTabRecorder.exe') -ArgumentList '--self-test' -WindowStyle Hidden -Wait -PassThru
 if ($launcher.ExitCode -ne 0) { throw 'Installed launcher self-test failed.' }
+$updater = Start-Process -FilePath (Join-Path $testDir 'ChromeTabRecorder.exe') -ArgumentList '--updater-self-test' -WindowStyle Hidden -Wait -PassThru
+if ($updater.ExitCode -ne 0) { throw "Updater validation self-test failed: $($updater.ExitCode)" }
+$protocol = (Get-Item -LiteralPath 'HKCU:\Software\Classes\chrometabrecorder\shell\open\command').GetValue('')
+if (-not $protocol.Contains($testDir)) { throw 'Update protocol did not preserve the installed path.' }
 $uninstaller = Join-Path $testDir 'unins000.exe'
 if (-not (Test-Path -LiteralPath $uninstaller)) { throw 'Uninstaller missing.' }
 $uninstall = Start-Process -FilePath $uninstaller -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WindowStyle Hidden -Wait -PassThru

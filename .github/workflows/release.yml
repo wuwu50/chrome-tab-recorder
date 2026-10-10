@@ -63,11 +63,12 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           python - <<'PY'
-          import base64, json, os, subprocess
+          import base64, hashlib, json, os, subprocess
           from pathlib import Path
           repo = os.environ['REPOSITORY']
           version = json.loads(Path('extension/manifest.json').read_text())['version']
           feed = {'version': version, 'downloadUrl': f'https://github.com/{repo}/releases/download/v{version}/ChromeTabRecorder-{version}-Setup.exe', 'zipUrl': f'https://github.com/{repo}/releases/download/v{version}/ChromeTabRecorder-{version}.zip', 'notes': Path('RELEASE_NOTES.md').read_text()}
+          feed['sha256'] = hashlib.sha256(Path(f'dist/ChromeTabRecorder-{version}-Setup.exe').read_bytes()).hexdigest()
           content = json.dumps(feed, ensure_ascii=False, indent=2) + '\n'
           result = subprocess.run(['gh','api',f'repos/{repo}/contents/version.json?ref=main'], capture_output=True, text=True)
           if result.returncode:

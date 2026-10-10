@@ -16,6 +16,10 @@ EXE 負責安裝檔案、建立捷徑與引導 Chrome 啟用；影音錄製仍�
 
 ## 程式內更新
 
+v1.6.0 的 Windows EXE 安裝版支援確認後自動下載安裝。桌面捷徑開啟的視窗按「檢查更新並安裝」，或從 Chrome 錄影控制視窗按「確認更新並自動安裝」。會自動使用原本安裝目錄；不需要選擇下載檔案位置。更新先驗證官方安裝包 SHA-256，再啟動只有進度畫面的安裝流程。下載失敗或驗證不符不執行安裝，保留原版。
+
+舊版需先手動安裝 v1.6.0 一次。請先停止錄影並儲存；安裝後 Chrome 擴充功能仍需重新載入。ZIP 版沒有註冊 Windows 更新器，請使用 EXE 安裝版。
+
 首次 Release 成功後，Actions 會在 main 分支建立 `version.json`。程式預設已設定此來源：
 
 `https://raw.githubusercontent.com/wuwu50/chrome-tab-recorder/main/version.json`

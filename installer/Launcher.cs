@@ -6,10 +6,11 @@ using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.Win32;
 [assembly: AssemblyTitle("分頁影音錄影機")]
-[assembly: AssemblyVersion("1.5.0.0")]
+[assembly: AssemblyVersion("1.6.0.0")]
 static class Launcher {
   static readonly string ExtensionPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"extension");
   [STAThread] static int Main(string[] args) {
+    if (args.Length == 1 && args[0] == "--updater-self-test") return Updater.SelfTest();
     if (args.Length == 1 && args[0] == "--self-test") return File.Exists(Path.Combine(ExtensionPath,"manifest.json")) ? 0 : 1;
     Application.EnableVisualStyles();
     Application.SetCompatibleTextRenderingDefault(false);
@@ -23,7 +24,7 @@ static class Launcher {
     layout.RowStyles.Add(new RowStyle(SizeType.Absolute,54));
     layout.RowStyles.Add(new RowStyle(SizeType.Absolute,54));
     layout.RowStyles.Add(new RowStyle(SizeType.Absolute,60));
-    layout.Controls.Add(new Label { Text="分頁影音錄影機  v1.5.0", Font=new Font("Microsoft JhengHei",20,FontStyle.Bold), Dock=DockStyle.Fill, TextAlign=ContentAlignment.MiddleLeft },0,0);
+    layout.Controls.Add(new Label { Text="分頁影音錄影機  v1.6.0", Font=new Font("Microsoft JhengHei",20,FontStyle.Bold), Dock=DockStyle.Fill, TextAlign=ContentAlignment.MiddleLeft },0,0);
     layout.Controls.Add(new Label { Text="第一次使用：\r\n\r\n1. 按下方按鈕開啟 Chrome 擴充功能頁。\r\n2. 開啟右上角「開發人員模式」。\r\n3. 按「載入未封裝項目」，貼上下方資料夾路徑。\r\n4. 釘選「分頁影音錄影機」到 Chrome 工具列。\r\n\r\n錄影：在目標分頁點工具列圖示 → 開啟獨立控制視窗。\r\n升級：先停止錄影並儲存，安裝新版後在擴充功能頁按重新載入。", Dock=DockStyle.Fill },0,1);
     layout.Controls.Add(new Label { Text="Chrome 要載入的擴充功能資料夾",Dock=DockStyle.Fill },0,2);
     layout.Controls.Add(new TextBox { Text=ExtensionPath, ReadOnly=true, Dock=DockStyle.Fill },0,3);
@@ -33,9 +34,10 @@ static class Launcher {
     copy.Click += delegate { Try(delegate { Clipboard.SetText(ExtensionPath); copy.Text="已複製路徑"; }); };
     controls.Controls.Add(open); controls.Controls.Add(copy); layout.Controls.Add(controls,0,4);
     FlowLayoutPanel secondary = new FlowLayoutPanel {Dock=DockStyle.Fill};
-    Button folder=Button("開啟安裝資料夾",190),download=Button("版本與下載頁",190);
+    Button folder=Button("開啟安裝資料夾",190),download=Button("檢查更新並安裝",190);
     folder.Click += delegate { Try(delegate { Process.Start("explorer.exe", "\""+ExtensionPath+"\""); }); };
-    download.Click += delegate { Try(delegate { Process.Start("https://github.com/wuwu50/chrome-tab-recorder/releases/latest"); }); };
+    download.Click += async delegate { await Updater.Run(form,download); };
+    if (args.Length > 0 && args[0] == "--update") form.Shown += async delegate { await Updater.Run(form,download); };
     secondary.Controls.Add(folder); secondary.Controls.Add(download); layout.Controls.Add(secondary,0,5);
     layout.Controls.Add(new Label { Text="錄影控制在 Chrome 內操作。最小化後網站可能暫停更新，請先短錄測試。\r\n解除安裝前，請先從 Chrome 移除此擴充功能。", Dock=DockStyle.Fill, ForeColor=Color.FromArgb(157,177,205),Font=new Font("Microsoft JhengHei",9) },0,6);
     form.Controls.Add(layout); Application.Run(form); return 0;

@@ -8,6 +8,7 @@ function updateMessage(text,isError=false) {
   $('update-status').dataset.error = String(isError);
 }
 function clearUpdateResult() {
+  $('update-install').hidden = true;
   $('update-download').hidden = true;
   $('update-download').removeAttribute('href');
   $('update-notes').hidden = true;
@@ -48,6 +49,7 @@ $('check-update').addEventListener('click',async()=>{
       updateMessage(`有新版本 v${result.latestVersion}（目前 v${result.currentVersion}）`);
       $('update-download').href = updateHttpsUrl(result.downloadUrl).href;
       $('update-download').hidden = false;
+      $('update-install').hidden = !navigator.userAgent.includes('Windows');
       if (result.notes) { $('update-notes').textContent = result.notes; $('update-notes').hidden = false; }
     } else {
       updateMessage(result.sourceBehind ? `更新來源版本 v${result.latestVersion} 比目前版本舊，沒有可更新版本。` : `目前已是最新版本 v${result.currentVersion}`);
@@ -71,6 +73,8 @@ function render() {
   $('size').textContent = `${((state.bytes || 0) / 1048576).toFixed(1)} MB`;
   $('capture-format').textContent = state.captureFormat ? `Chrome 擷取設定：${state.captureFormat}` : '尚未擷取；實際畫面更新率取決於來源與硬體';
   const recording = !['idle','error'].includes(state.phase);
+  $('update-install').setAttribute('aria-disabled',String(recording || busy));
+  $('update-install').classList.toggle('disabled-link',recording || busy);
   $('title').textContent = (recording ? state.title : target?.title) || '尚未選擇錄製分頁';
   $('site').textContent = recording && state.tabId !== target?.id ? '已固定錄製目標' : (target?.url || '在目標分頁開啟此控制視窗');
   $('start').disabled = preview || busy || recording || !target;
@@ -107,10 +111,15 @@ $('locate').addEventListener('click',async()=>{
     await chrome.windows.update(tab.windowId,{focused:true});
   } catch (_) { localError = '目標分頁已關閉，請重新選擇分頁。'; render(); }
 });
+$('update-install').addEventListener('click',event=>{
+  if (busy || !['idle','error'].includes(state.phase)) {
+    event.preventDefault();updateMessage('請先停止錄影並完成儲存，才能安裝更新。',true);
+  }
+});
 if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.5.0';
+  $('version').textContent = 'v1.6.0';
   updateButtons();
 } else { refresh(); loadUpdateSettings(); setInterval(refresh,1000); }

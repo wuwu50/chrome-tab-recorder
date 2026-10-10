@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.5.0"
+  #define AppVersion "1.6.0"
 #endif
 [Setup]
 AppId={{589A672F-832B-4DCF-8457-B0F2877E1B8F}
@@ -28,5 +28,9 @@ Source: "..\extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion recur
 [Icons]
 Name: "{group}\分頁影音錄影機"; Filename: "{app}\ChromeTabRecorder.exe"
 Name: "{userdesktop}\分頁影音錄影機"; Filename: "{app}\ChromeTabRecorder.exe"; Tasks: desktopicon
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\chrometabrecorder"; ValueType: string; ValueData: "URL:ChromeTabRecorder Update"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\chrometabrecorder"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\chrometabrecorder\shell\open\command"; ValueType: string; ValueData: """{app}\ChromeTabRecorder.exe"" --update"
 [Run]
 Filename: "{app}\ChromeTabRecorder.exe"; Description: "開啟分頁影音錄影機安裝與啟動介面"; Flags: nowait postinstall skipifsilent
