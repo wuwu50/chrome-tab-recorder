@@ -11,9 +11,10 @@
       <div class="status-line"><span class="light" id="light"></span><span id="status" role="status" aria-live="polite">讀取中…</span></div>
       <div id="time">00:00:00</div>
       <p id="capture-format" class="target-help"></p><div class="stats"><span>已錄製時間</span><span id="size">0.0 MB</span></div>
+      <p id="segments" class="target-help"></p>
       <div class="target"><div class="target-icon">▣</div><div class="target-content"><div class="section-label">錄製分頁</div><div id="title">正在取得目標…</div><div id="site"></div></div><button id="locate" class="text-button">查看分頁 ↗</button></div>
       <p class="target-help">要更換目標，請在想錄製的分頁點工具列圖示，再按「開啟獨立控制視窗」。</p>
-      <div class="actions"><button id="start" class="primary" disabled>● 開始錄影</button><button id="stop" class="stop" disabled>■ 停止並儲存</button></div>
+      <div class="actions"><button id="start" class="primary" disabled>● 開始錄影</button><button id="stop" class="stop" disabled>■ 停止並儲存全部段落</button></div>
       <div class="recovery"><button id="retry" class="primary" hidden>重新儲存影片</button><button id="discard" class="text-button" hidden>刪除暫存影片</button></div>
       <p id="error" role="alert"></p>
       <button id="diagnostics" class="text-button">匯出錯誤紀錄</button>
@@ -21,6 +22,7 @@
     <aside>
       <section class="settings"><h2>錄製設定</h2><label for="quality">畫面品質</label><select id="quality"><option value="1080p120" selected>1080p · 120 FPS / 32 Mbps</option><option value="1080p60">1080p · 60 FPS / 16 Mbps</option><option value="normal">標準 · 30 fps / 4 Mbps</option><option value="high">高畫質 · 30 fps / 8 Mbps</option></select><label class="audio-mode"><input id="monitor-audio" type="checkbox"> 錄影時也播放聲音到喇叭</label><p class="audio-help">預設安靜錄影：分頁靜音會暫時解除，喇叭不播放，停止時恢復。播放器內請保持有聲音。</p><div class="setting-row"><span>畫面來源</span><strong>指定分頁</strong></div><div class="setting-row"><span>音訊來源</span><strong>指定分頁</strong></div><div class="setting-row"><span>麥克風</span><strong class="muted">關閉</strong></div><div class="setting-row"><span>其他程式音訊</span><strong class="muted">不擷取</strong></div><p>影片在本機處理，固定儲存 MP4 影片。</p></section>
       <section class="background-note"><span>↙</span><h2>可以放到背景錄製</h2><p>切換分頁、使用其他程式或最小化 Chrome，錄影工作仍會持續。</p><p class="caution">部分網站最小化後可能停止播放或更新畫面，請先短錄測試。</p></section>
+      <section class="background-note"><h2>長錄自動分段 MP4</h2><p>每段約 1 GB 或 5 分鐘，避免單次 MP4 編碼累積過大。停止後依序儲存編號影片；多段直接存到 Chrome 預設下載資料夾。</p><p class="caution">切換段落可能有短暫影音缺口。每段都是獨立 MP4，不會自動合併成一部影片。</p></section>
       <section class="updates">
         <div class="update-heading"><h2>程式更新</h2><span id="version">版本 —</span></div>
         <button id="check-update" class="update-check">↻ 檢查更新</button>

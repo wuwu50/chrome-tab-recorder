@@ -24,7 +24,7 @@ async function offscreen(type, extra = {}) {
   return response.data;
 }
 async function setBadge(phase) {
-  await chrome.action.setBadgeText({text: phase === 'recording' ? 'REC' : ['ready','downloading','saving'].includes(phase) ? '存' : ''});
+  await chrome.action.setBadgeText({text: ['recording','rotating'].includes(phase) ? 'REC' : ['ready','downloading','saving'].includes(phase) ? '存' : ''});
   await chrome.action.setBadgeBackgroundColor({color:'#d9415b'});
 }
 async function handle(message) {
@@ -60,7 +60,7 @@ async function handle(message) {
     case 'diagnostic': {
       const entry = message.entry || {};
       // Keep only recording metrics and errors; never store page titles or URLs.
-      const clean = {time:String(entry.time || ''),reason:String(entry.reason || '').slice(0,2000),phase:String(entry.phase || ''),bytes:Number(entry.bytes) || 0,queuedBytes:Number(entry.queuedBytes) || 0,captureFormat:String(entry.captureFormat || ''),requestedFps:Number(entry.requestedFps) || 0};
+      const clean = {time:String(entry.time || ''),reason:String(entry.reason || '').slice(0,2000),phase:String(entry.phase || ''),bytes:Number(entry.bytes) || 0,queuedBytes:Number(entry.queuedBytes) || 0,partNumber:Number(entry.partNumber) || 1,partBytes:Number(entry.partBytes) || 0,captureFormat:String(entry.captureFormat || ''),requestedFps:Number(entry.requestedFps) || 0};
       diagnosticWrites = diagnosticWrites.catch(() => {}).then(async () => {
         const entries = (await chrome.storage.local.get('diagnostics')).diagnostics || [];
         await chrome.storage.local.set({diagnostics:[...entries,clean].slice(-40)});
@@ -91,7 +91,7 @@ async function handle(message) {
       await chrome.storage.local.set({lastError:message.error || ''});
       return null;
     case 'save-file': {
-      const id = await chrome.downloads.download({url:message.url,filename:message.filename,saveAs:true});
+      const id = await chrome.downloads.download({url:message.url,filename:message.filename,saveAs:message.saveAs !== false});
       await chrome.storage.local.set({pendingDownload:id});
       // Completion may race with storing the ID for very small files.
       const [item] = await chrome.downloads.search({id});
@@ -113,9 +113,16 @@ async function finishDownload(id,state,error) {
   finishing = true;
   try {
     await offscreen('download-ended',{complete:state === 'complete',error:error || '下載取消或失敗，影片仍在暫存，可重新儲存。'});
-    await chrome.storage.local.remove('pendingDownload');
+    // Completing one segment can start the next download before this returns.
+    // Do not erase that next segment's ID or miss its fast completion event.
+    if ((await chrome.storage.local.get('pendingDownload')).pendingDownload === id) await chrome.storage.local.remove('pendingDownload');
   } catch (e) { await chrome.storage.local.set({lastError:e.message}); }
   finally { finishing = false; }
+  const next = (await chrome.storage.local.get('pendingDownload')).pendingDownload;
+  if (next && next !== id) {
+    const [item] = await chrome.downloads.search({id:next});
+    if (item && item.state !== 'in_progress') setTimeout(()=>finishDownload(next,item.state,item.error),0);
+  }
 }
 chrome.downloads.onChanged.addListener(delta => {
   if (delta.state) finishDownload(delta.id,delta.state.current,delta.error?.current);

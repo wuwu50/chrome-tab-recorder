@@ -4,8 +4,9 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8');
 const journalSource = fs.readFileSync(path.join(__dirname,'../extension/recording-journal.js'),'utf8');
-function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false,mp4Supported = true,files = new Map(),slowDisk = false,quota = 1e12,assemblyFails = false} = {}) {
+function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false,mp4Supported = true,files = new Map(),slowDisk = false,quota = 1e12,assemblyFails = false,segmentLimit = null} = {}) {
   let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0, speakerConnections = 0;
+  const downloadRequests=[];
   const tracks = ['video','audio'].map(kind => ({kind,stop(){stopped++},addEventListener(name,fn){this.ended = fn}}));
   tracks[0].getSettings = () => settingsOverride || ({width:constraints?.video.mandatory.maxWidth || 1280,height:constraints?.video.mandatory.maxHeight || 720,frameRate:constraints?.video.mandatory.maxFrameRate || 30});
   const stream = {getTracks:()=>tracks,getVideoTracks:()=>[tracks[0]],getAudioTracks:()=>[tracks[1]]};
@@ -42,16 +43,16 @@ function setup({captureFails = false,saveFails = false,settingsOverride = null,t
   const context = vm.createContext({
     chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn}},async sendMessage(m){
       if(m.type==='prepare-audio')return {ok:true,data:{originallyMuted:tabMuted}};
-      if(m.type==='save-file'){downloads++;if(saveFails)return {ok:false,error:'cancelled'};return {ok:true,data:{downloadId:7}}}return {ok:true};
+      if(m.type==='save-file'){downloads++;downloadRequests.push(m);if(saveFails)return {ok:false,error:'cancelled'};return {ok:true,data:{downloadId:7}}}return {ok:true};
     }}},
     navigator:{storage:{getDirectory:async()=>root,estimate:async()=>({usage:0,quota})},mediaDevices:{async getUserMedia(c){constraints=c;if(captureFails)throw Error('denied');return stream}}},
     MediaRecorder:Recorder,AudioContext:class{createMediaStreamSource(){return {connect(){speakerConnections++}}}destination={};async resume(){}async close(){}},
     URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Date,Promise,console
   });
   vm.runInContext(journalSource,context);
-  vm.runInContext(source,context);
+  vm.runInContext(segmentLimit === null ? source : source.replace('const maxSegmentBytes = 1024 * 1048576;',`const maxSegmentBytes = ${segmentLimit};`),context);
   const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,...extra},{id:'test'},resolve));
-  return {command,tracks,files,emit(data){Recorder.instance.ondataavailable({data})},get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,speakerConnections,encoding:Recorder.instance?.options}}};
+  return {command,tracks,files,emit(data){Recorder.instance.ondataavailable({data})},get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,downloadRequests,speakerConnections,encoding:Recorder.instance?.options}}};
 }
 async function until(test,phase) {
   for(let i=0;i<100;i++){const s=await test.command('status');if(s.data.phase===phase)return s.data;await new Promise(r=>setTimeout(r,5))}
@@ -156,6 +157,43 @@ async function until(test,phase) {
   assert.equal(JSON.parse(await assemblyError.files.get('recording-parts/metadata.json').text()).count,2);
   await assemblyError.command('download');await until(assemblyError,'downloading');
   assert.equal(await assemblyError.files.get('recording.tmp').text(),'firstlast');
+  const split=setup({segmentLimit:12});
+  await split.command('start',{streamId:'same-tab',quality:'1080p120'});
+  split.emit(new Blob(['12345678']));
+  let segmentState;
+  for(let i=0;i<100;i++){
+    segmentState=(await split.command('status')).data;
+    if(segmentState.phase==='recording' && segmentState.partNumber===2)break;
+    await new Promise(r=>setTimeout(r,5));
+  }
+  assert.equal(segmentState.partNumber,2);assert.equal(segmentState.phase,'recording');
+  assert.equal(split.stats.stopped,0,'rotation must retain the same video and audio capture tracks');
+  assert.equal(split.stats.encoding.videoBitsPerSecond,32000000,'rotation must retain 120 FPS bitrate');
+  await split.command('stop');await until(split,'downloading');
+  assert.equal(await split.files.get('recording.tmp').text(),'first12345678last','first segment needs final encoder chunk');
+  assert(split.stats.downloadRequests[0].filename.endsWith('第001段.mp4'));
+  assert.equal(split.stats.downloadRequests[0].saveAs,false,'multiple segments use default download folder');
+  await split.command('download-ended',{complete:true});await until(split,'downloading');
+  assert.equal(await split.files.get('recording.tmp').text(),'firstlast','new encoder output must not be concatenated with previous MP4');
+  assert(split.stats.downloadRequests[1].filename.endsWith('第002段.mp4'));
+  await split.command('download-ended',{complete:false,error:'second cancelled'});await until(split,'ready');
+  assert.equal(JSON.parse(await split.files.get('recording-parts/metadata.json').text()).downloaded,1);
+  const resume=setup({files:split.files});
+  assert.equal((await resume.command('status')).data.savedParts,1,'restart remembers which segments were downloaded');
+  await resume.command('download');await until(resume,'downloading');
+  assert(resume.stats.downloadRequests[0].filename.endsWith('第002段.mp4'),'resume does not download already completed first part');
+  await resume.command('download-ended',{complete:true});await until(resume,'idle');
+  assert(!resume.files.has('recording-parts/'),'delete journal only when every segment is saved');
+  const stopDuringRotation=setup({segmentLimit:12,slowDisk:true});
+  await stopDuringRotation.command('start',{streamId:'rotate-stop'});
+  stopDuringRotation.emit(new Blob(['12345678']));
+  await until(stopDuringRotation,'rotating');
+  await stopDuringRotation.command('stop');
+  const stoppedRotation=await until(stopDuringRotation,'downloading');
+  assert.equal(stoppedRotation.partNumber,1,'stop during rotation must not start another encoder');
+  assert.equal(await stopDuringRotation.files.get('recording.tmp').text(),'first12345678last');
+  await stopDuringRotation.command('download-ended',{complete:true});await until(stopDuringRotation,'idle');
   console.log('PASS: tab-only media, concurrent guard, final chunk flush, track cleanup, download retry, temp cleanup, target closed, acquisition failure.');
   console.log('PASS: committed chunk recovery after process loss, overwrite guard, bounded queue stop, storage quota guard, corrupted journal protection.');
+  console.log('PASS: muxer rotation retains tab/audio/120 FPS, independent MP4 parts, final chunks, ordered downloads, cancellation and restart resume.');
 })().catch(error=>{console.error(error);process.exitCode=1});
