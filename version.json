@@ -1,7 +1,7 @@
 {
-  "version": "1.7.0",
-  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.7.0/ChromeTabRecorder-1.7.0-Setup.exe",
-  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.7.0/ChromeTabRecorder-1.7.0.zip",
-  "notes": "v1.7.0 加入長時間錄影保護與中斷取回：\n\n- 錄影片段約每 5 秒完成本機寫入，重開控制視窗可嘗試取回已寫入資料；意外中斷的 MP4 可能不完整，無法保證可播放。\n- 限制待寫入資料為 64 MB，超過上限或估計暫存空間不足時停止並嘗試儲存先前片段。\n- 新增「匯出錯誤紀錄」，包含版本、錄影設定、資料量與最近事件，不會自動上傳。\n- 維持指定分頁影音、安靜錄音、1080p／120 FPS 選項及 MP4 輸出。長錄建議先使用 1080p／60 FPS 測試。\n\n已驗證模擬中斷取回、待寫入上限、空間不足處理與實際 Chrome MP4 逐段寫入／組合／播放；尚未重現使用者的半小時 1080p／120 FPS 停止問題，不能保證本次已消除其原因。\n\nWindows 安裝版可在程式內確認更新後自動安裝。更新前先停止錄影並儲存；安裝後到 Chrome 擴充功能頁重新載入。舊版崩潰前未完成的暫存無法保證取回。\n",
-  "sha256": "abf1a767c338a2f5c49cef18cd0cb2725d54d27ffa53fa8d7a1020716d5cd0bc"
+  "version": "1.8.0",
+  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.8.0/ChromeTabRecorder-1.8.0-Setup.exe",
+  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.8.0/ChromeTabRecorder-1.8.0.zip",
+  "notes": "v1.8.0 針對長時間 MP4 錄影接近 4 GiB 時的崩潰加入自動分段。\n\n- 每段約 1 GiB 或 5 分鐘就切換新的 MP4 編碼器；維持同一分頁擷取、120 FPS 設定與音訊來源。\n- 長錄會產生依序編號的多個獨立 MP4，停止後依序下載。切換可能有短暫影音缺口，不會自動合併成一部影片。\n- 取消儲存、失敗或重新開啟後，可繼續儲存剩餘段落；最後一段若意外中斷，不保證可播放。\n- 修正連續小檔案下載太快完成時，下一段狀態遺失的競態。\n- 新增各段資料量與分段事件的錯誤紀錄。\n\n依據：本機錄影紀錄最後保留 4,278,427,148 bytes，Chrome renderer 隨後崩潰；同版 Chromium 的 MP4 寫入位置為 uint32_t 並在加法溢位時 CHECK。\nhttps://github.com/chromium/chromium/blob/155.0.8059.39/media/muxers/output_position_tracker.cc\n\n模擬流程與實際 Chrome 縮短門檻的多段 MP4 編碼／播放測試通過；尚未完成使用者網站的長錄驗證。\n\n更新前先停止並儲存現有暫存。程式內確認更新後自動安裝；安裝後到 Chrome 擴充功能頁重新載入。\n",
+  "sha256": "7e6797ba98dfb6f3078c1d8f4358433ad6f6ebbeb282ae666b12ee05a37704b2"
 }
