@@ -1,7 +1,7 @@
 {
-  "version": "1.11.0",
-  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.11.0/ChromeTabRecorder-1.11.0-Setup.exe",
-  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.11.0/ChromeTabRecorder-1.11.0.zip",
-  "notes": "分頁影音錄影機 v1.11.0\n\n錄製時仍使用分段保護，停止後自動合併為一部 MP4，再直接存入設定的資料夾。不重新編碼、不重新壓縮影音，也不需要額外安裝合併工具或上傳影片。新增合併進度提示。\n\n合併或儲存失敗會保留原始片段，可重新儲存或按「改用分段儲存」。取消存檔不會刪除片段，重新開啟後可恢復並再次合併。\n\n合併器使用 64 位元 MP4 大檔案偏移，測試跨越 4 GB；不是把 MP4 檔案直接拼接。切換錄製段落原有的短暫缺口無法補回。合併需額外磁碟空間，請保持 Chrome 開啟直到完成。\n\n更新安裝後，在 Chrome 擴充功能頁重新載入錄影機即可。\n",
-  "sha256": "264190f6b685d75fee821b3c9351e67e4dedc58a6c43b1f6471b14ca52cb4add"
+  "version": "1.12.0",
+  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.12.0/ChromeTabRecorder-1.12.0-Setup.exe",
+  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.12.0/ChromeTabRecorder-1.12.0.zip",
+  "notes": "分頁影音錄影機 v1.12.0\n\n加速長錄存檔：設定資料夾後，合併結果直接寫入目的資料夾，省去先產生整部暫存影片再完整複製一次的步驟。單段與分段儲存也直接寫入。既有暫存影片的複製改用 Chrome 原生 Blob 寫入，避免大量小型讀寫往返。\n\n移除合併過程的背景計時器等待，避免最小化後的計時器節流拉長儲存時間。保留單一 MP4、原始影音畫質、64 位元大檔案偏移，以及失敗重試／分段救援。儲存成功前不刪除原始片段；失敗輸出會移除，原始影片仍可重新儲存。\n\n實際速度仍取決於錄影大小、CPU 與磁碟。更新後請在 Chrome 擴充功能頁重新載入。\n",
+  "sha256": "94dbe53a686d026e0d15d9ccb0324ce016d81f4e23f24f7637eb01b4c0195a11"
 }
