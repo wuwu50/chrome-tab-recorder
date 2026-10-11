@@ -43,7 +43,7 @@ const MergeMp4 = {
           let v = await videoIterator.next(), a = audioIterator ? await audioIterator.next() : {done:true};
           if (v.done || v.value.type !== 'key') throw new Error(`第 ${index+1} 段缺少起始關鍵影格，請使用分段儲存。`);
           // Interleave tracks instead of buffering all video while waiting for audio.
-          let firstVideo = true, firstAudio = true, segmentPackets = 0, segmentEnd = base;
+          let firstVideo = true, firstAudio = true, segmentEnd = base;
           while (!v.done || !a.done) {
             const isVideo = a.done || (!v.done && v.value.timestamp <= a.value.timestamp);
             const packet = isVideo ? v.value : a.value;
@@ -56,9 +56,10 @@ const MergeMp4 = {
               await audioSource.add(adjusted,firstAudio ? {decoderConfig:ac} : undefined);
               firstAudio = false; a = await audioIterator.next();
             }
-            packetsWritten++; segmentPackets++;
+            packetsWritten++;
             onProgress({part:index+1,total:parts.length,progress:(index + Math.min(1,(segmentEnd-base)/(end-base))) / parts.length});
-            if (segmentPackets % 512 === 0) await new Promise(resolve=>setTimeout(resolve,0));
+            // Blob reads and file writes already yield. Background setTimeout
+            // can be throttled to seconds, multiplying the cost of long videos.
           }
           if (audio && firstAudio) throw new Error(`第 ${index+1} 段音訊無法讀取。`);
           offset += Math.max(end,segmentEnd) - base;

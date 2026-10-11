@@ -38,15 +38,10 @@ const OutputFolder = {
     let writable;
     try {
       writable = await handle.createWritable();
-      // Write bounded chunks: large MP4 files must never be loaded entirely into RAM.
-      const reader = file.stream().getReader();
-      try {
-        while (true) {
-          const {done,value} = await reader.read();
-          if (done) break;
-          await writable.write(value);
-        }
-      } finally { reader.releaseLock(); }
+      // Producers remux directly into the destination. Blob writes use Chrome's
+      // native streaming path instead of thousands of small JS/IPC writes.
+      if (typeof file === 'function') await file(writable);
+      else await writable.write(file);
       await writable.close();
       return name;
     } catch (error) {

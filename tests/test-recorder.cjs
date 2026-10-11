@@ -47,7 +47,7 @@ function setup({captureFails = false,saveFails = false,settingsOverride = null,t
     }}},
     navigator:{storage:{getDirectory:async()=>root,estimate:async()=>({usage:0,quota})},mediaDevices:{async getUserMedia(c){constraints=c;if(captureFails)throw Error('denied');return stream}}},
     MediaRecorder:Recorder,AudioContext:class{createMediaStreamSource(){return {connect(){speakerConnections++}}}destination={};async resume(){}async close(){}},
-    OutputFolder:{stored:async()=>folder,authorized:async h=>{if(h?.denied)throw Error('允許存取');return h},save:async(dir,name,file)=>{if(dir.fail)throw Error('destination full');dir.saved ||= [];dir.saved.push({name,bytes:await file.text()})}},
+    OutputFolder:{stored:async()=>folder,authorized:async h=>{if(h?.denied)throw Error('允許存取');return h},save:async(dir,name,file)=>{if(dir.fail)throw Error('destination full');dir.saved ||= [];let bytes;if(typeof file==='function'){const chunks=[];await file({async write(blob){chunks.push(blob)}});bytes=await new Blob(chunks).text()}else bytes=await file.text();dir.saved.push({name,bytes})}},
     Blob,MergeMp4:{async write({parts,getBlob,writable,onProgress}){if(mergeFails)throw Error('broken merge input');for(let i=0;i<parts.length;i++){await writable.write(await getBlob(parts[i]));onProgress({part:i+1,total:parts.length,progress:(i+1)/parts.length})}}},
     URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Date,Promise,console
   });
@@ -73,7 +73,7 @@ async function until(test,phase) {
   await direct.command('start',{streamId:'folder'});direct.emit(new Blob(['12345678']));
   for(let i=0;i<100;i++){const status=(await direct.command('status')).data;if(status.phase==='recording' && status.partNumber===2)break;await new Promise(r=>setTimeout(r,5));}
   assert.equal((await direct.command('status')).data.partNumber,2);await direct.command('stop');await until(direct,'idle');
-  assert.equal(direct.stats.downloads,0,'selected folder must bypass browser Save As');
+  assert.equal(direct.stats.downloads,0,'selected folder must bypass browser Save As');assert.equal(direct.stats.writes.length,0,'direct folder output must skip whole-film OPFS assembly and second copy');
   assert.equal(folder.saved.length,2);assert.equal(folder.saved[0].bytes,'first12345678last');assert.equal(folder.saved[1].bytes,'firstlast');
   const broken={fail:true};const retry=setup({folder:broken});await retry.command('start',{streamId:'retry'});await retry.command('stop');
   assert((await until(retry,'ready')).error.includes('destination full'));assert.equal(retry.stats.removed,0);

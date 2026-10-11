@@ -47,12 +47,20 @@ async function assemble() {
   const part = journal.parts()[journal.meta.downloaded || 0];
   if (!part) throw new Error('所有影片段落都已儲存。');
   try {
+    await writeOutput(writer);
+    await writer.close(); writer = null; assembled = true;
+  }
+  catch (error) { await writer.abort().catch(() => {}); writer = null; throw error; }
+}
+async function writeOutput(writable) {
+  const part = journal.parts()[journal.meta.downloaded || 0];
+  if (!part) throw new Error('所有影片段落都已儲存。');
     if (shouldMerge()) {
       const previousPhase = state.phase;
       state.phase = 'merging'; state.mergeProgress = 0; state.merged = false; notify();
       let progressAt = 0;
       try {
-        await MergeMp4.write({parts:journal.parts(),getBlob:part=>journal.blob(part),writable:writer,onProgress:progress=>{
+        await MergeMp4.write({parts:journal.parts(),getBlob:part=>journal.blob(part),writable,onProgress:progress=>{
           state.mergeProgress = Math.floor(progress.progress * 100); state.mergePart = progress.part;
           if (Date.now() - progressAt > 500) { progressAt = Date.now(); notify(); }
         }});
@@ -61,11 +69,8 @@ async function assemble() {
       } finally { state.phase = previousPhase; notify(); }
     } else {
       state.merged = false;
-      await journal.assemble(writer,part);
+      await journal.assemble(writable,part);
     }
-    await writer.close(); writer = null; assembled = true;
-  }
-  catch (error) { await writer.abort().catch(() => {}); writer = null; throw error; }
 }
 const initialized = (async () => {
   try {
@@ -240,7 +245,6 @@ async function finalize() {
     journal.meta.complete = !writeError && !state.error;
     journal.meta.endedAt = state.endedAt;
     await journal.saveMeta();
-    await assemble();
     state.phase = 'ready'; notify();
     diagnostic(state.error || '錄影已完成');
     if (!state.bytes) { state.error = '沒有錄到影片資料。'; notify(); return; }
@@ -252,6 +256,16 @@ async function download() {
   if (state.phase !== 'ready') throw new Error('影片尚未準備好，請稍候。');
   state.phase = 'saving'; notify();
   try {
+  outputDirectory = await OutputFolder.authorized(await OutputFolder.stored());
+  if (outputDirectory && !assembled) {
+    // Skip the complete OPFS output copy: write the final MP4 once, to its folder.
+    if (writer) { await writer.abort(); writer = null; }
+    const parts = journal.parts();
+    const name = shouldMerge() || (parts.length === 1 && journal.meta.mergeAfterStop !== false) ? filename : parts[journal.meta.downloaded || 0].filename;
+    await OutputFolder.save(outputDirectory,name,writable=>writeOutput(writable));
+    diagnostic('MP4 已直接完成於設定資料夾，略過整部暫存複製');
+    await discardAfterDownload(); return {...state};
+  }
   await assemble();
   const file = await fileHandle.getFile();
   if (!file.size) throw new Error('暫存影片是空的，請刪除並重新錄影。');

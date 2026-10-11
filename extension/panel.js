@@ -188,6 +188,6 @@ if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.11.0';
+  $('version').textContent = 'v1.12.0';
   updateButtons();
 } else { refresh(); loadFolder(); loadUpdateSettings(); setInterval(refresh,1000); }
