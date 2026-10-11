@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8');
 const journalSource = fs.readFileSync(path.join(__dirname,'../extension/recording-journal.js'),'utf8');
-function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false,mp4Supported = true,files = new Map(),slowDisk = false,quota = 1e12,assemblyFails = false,segmentLimit = null, folder = null} = {}) {
+function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false,mp4Supported = true,files = new Map(),slowDisk = false,quota = 1e12,assemblyFails = false,segmentLimit = null, folder = null, mergeFails = false} = {}) {
   let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0, speakerConnections = 0;
   const downloadRequests=[];
   const tracks = ['video','audio'].map(kind => ({kind,stop(){stopped++},addEventListener(name,fn){this.ended = fn}}));
@@ -48,11 +48,12 @@ function setup({captureFails = false,saveFails = false,settingsOverride = null,t
     navigator:{storage:{getDirectory:async()=>root,estimate:async()=>({usage:0,quota})},mediaDevices:{async getUserMedia(c){constraints=c;if(captureFails)throw Error('denied');return stream}}},
     MediaRecorder:Recorder,AudioContext:class{createMediaStreamSource(){return {connect(){speakerConnections++}}}destination={};async resume(){}async close(){}},
     OutputFolder:{stored:async()=>folder,authorized:async h=>{if(h?.denied)throw Error('允許存取');return h},save:async(dir,name,file)=>{if(dir.fail)throw Error('destination full');dir.saved ||= [];dir.saved.push({name,bytes:await file.text()})}},
+    Blob,MergeMp4:{async write({parts,getBlob,writable,onProgress}){if(mergeFails)throw Error('broken merge input');for(let i=0;i<parts.length;i++){await writable.write(await getBlob(parts[i]));onProgress({part:i+1,total:parts.length,progress:(i+1)/parts.length})}}},
     URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Date,Promise,console
   });
   vm.runInContext(journalSource,context);
   vm.runInContext(segmentLimit === null ? source : source.replace('const maxSegmentBytes = 1024 * 1048576;',`const maxSegmentBytes = ${segmentLimit};`),context);
-  const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,...extra},{id:'test'},resolve));
+  const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,...(type==='start'?{mergeAfterStop:false}:{}),...extra},{id:'test'},resolve));
   return {command,tracks,files,emit(data){Recorder.instance.ondataavailable({data})},get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,downloadRequests,speakerConnections,encoding:Recorder.instance?.options}}};
 }
 async function until(test,phase) {
@@ -60,6 +61,14 @@ async function until(test,phase) {
   throw Error(`never reached ${phase}`);
 }
 (async()=>{
+  async function rotated(test){await test.command('start',{streamId:'merge',mergeAfterStop:true});test.emit(new Blob(['12345678']));for(let i=0;i<100;i++){const s=(await test.command('status')).data;if(s.phase==='recording'&&s.partNumber===2)return;await new Promise(r=>setTimeout(r,5))}throw Error('rotation timeout')}
+  const merge=setup({segmentLimit:12});await rotated(merge);await merge.command('stop');await until(merge,'downloading');
+  assert.equal(merge.stats.downloadRequests.length,1);assert(!merge.stats.downloadRequests[0].filename.includes('第001段'));assert.equal(merge.stats.downloadRequests[0].saveAs,true);
+  await merge.command('download-ended',{complete:false,error:'cancelled merged download'});assert((await until(merge,'ready')).error.includes('cancelled'));assert.equal(merge.stats.removed,0);
+  const resumed=setup({files:merge.files});await until(resumed,'ready');await resumed.command('download');await until(resumed,'downloading');assert.equal(resumed.stats.downloadRequests.length,1);assert(!resumed.stats.downloadRequests[0].filename.includes('第001段'));await resumed.command('download-ended',{complete:true});await until(resumed,'idle');
+  const badMerge=setup({segmentLimit:12,mergeFails:true});await rotated(badMerge);await badMerge.command('stop');assert((await until(badMerge,'ready')).error.includes('broken merge input'));assert.equal(badMerge.stats.downloads,0);assert(badMerge.files.has('recording-parts/metadata.json'));
+  await badMerge.command('save-segments');await until(badMerge,'downloading');assert(badMerge.stats.downloadRequests[0].filename.endsWith('第001段.mp4'));await badMerge.command('download-ended',{complete:true});await until(badMerge,'downloading');assert(badMerge.stats.downloadRequests[1].filename.endsWith('第002段.mp4'));await badMerge.command('download-ended',{complete:true});await until(badMerge,'idle');
+  console.log('PASS: merged file saves once, cancellation retains all chunks, recovery re-merges, merge errors preserve segments for explicit fallback.');
   const folder={};const direct=setup({folder,segmentLimit:12});
   await direct.command('start',{streamId:'folder'});direct.emit(new Blob(['12345678']));
   for(let i=0;i<100;i++){const status=(await direct.command('status')).data;if(status.phase==='recording' && status.partNumber===2)break;await new Promise(r=>setTimeout(r,5));}

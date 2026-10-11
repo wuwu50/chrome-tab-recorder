@@ -101,15 +101,15 @@ async function command(type,extra={}) {
   return response.data;
 }
 function render() {
-  const labels = {idle:'準備開始錄影',starting:'正在準備錄影…',recording:'正在錄製分頁影音',rotating:'正在切換下一段 MP4…',saving:'正在完成影片…',ready:'影片已暫存，等待儲存',downloading:'正在儲存影片…',error:'錄影發生錯誤'};
+  const labels = {idle:'準備開始錄影',starting:'正在準備錄影…',recording:'正在錄製分頁影音',rotating:'正在切換下一段 MP4…',merging:`正在合併成單一 MP4… ${state.mergeProgress || 0}%`,saving:'正在完成影片…',ready:'影片已暫存，等待儲存',downloading:'正在儲存影片…',error:'錄影發生錯誤'};
   const short = {idle:'準備就緒',starting:'準備中',recording:'● REC',rotating:'分段中',saving:'儲存中',ready:'待儲存',downloading:'下載中',error:'請檢查'};
   $('status').textContent = labels[state.phase] || state.phase;
-  $('badge').textContent = short[state.phase] || state.phase;
+  $('badge').textContent = state.phase === 'merging' ? '合併中' : short[state.phase] || state.phase;
   $('light').classList.toggle('recording',state.phase === 'recording');
   const seconds = state.startedAt ? Math.max(0,Math.floor(((state.endedAt || Date.now()) - state.startedAt) / 1000)) : 0;
   $('time').textContent = [Math.floor(seconds / 3600),Math.floor(seconds / 60) % 60,seconds % 60].map(n=>String(n).padStart(2,'0')).join(':');
   $('size').textContent = `${((state.bytes || 0) / 1048576).toFixed(1)} MB`;
-  $('segments').textContent = state.segmented ? `第 ${state.partNumber || 1} 段 MP4 · 已儲存 ${state.savedParts || 0} 段` : '長錄會自動分段，每段約 1 GB 或 5 分鐘';
+  $('segments').textContent = state.phase === 'merging' ? `正在處理第 ${state.mergePart || 1} 段；完成後儲存一部 MP4` : state.segmented ? `內部分段保護：第 ${state.partNumber || 1} 段 · 停止後自動合併` : '長錄有分段保護，停止後自動合併成一部 MP4';
   $('capture-format').textContent = state.captureFormat ? `Chrome 擷取設定：${state.captureFormat}` : '尚未擷取；實際畫面更新率取決於來源與硬體';
   const recording = !['idle','error'].includes(state.phase);
   $('update-install').setAttribute('aria-disabled',String(recording || busy));
@@ -126,6 +126,8 @@ function render() {
   $('locate').disabled = preview || !(recording ? state.tabId : target?.id);
   $('retry').hidden = $('discard').hidden = state.phase !== 'ready';
   $('retry').disabled = $('discard').disabled = preview || busy;
+  $('save-segments').hidden = state.phase !== 'ready';
+  $('save-segments').disabled = preview || busy;
   $('error').textContent = localError || state.error || '';
 }
 async function refresh() {
@@ -152,6 +154,11 @@ $('retry').addEventListener('click',async()=>{
   try { await OutputFolder.authorized(folderHandle,true); }
   catch (error) { localError = error.message; render(); return; }
   return run('download');
+});
+$('save-segments').addEventListener('click',async()=>{
+  try { await OutputFolder.authorized(folderHandle,true); }
+  catch (error) { localError = error.message; render(); return; }
+  return run('save-segments');
 });
 $('diagnostics').disabled = preview;
 $('diagnostics').addEventListener('click',async()=>{
@@ -181,6 +188,6 @@ if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.10.0';
+  $('version').textContent = 'v1.11.0';
   updateButtons();
 } else { refresh(); loadFolder(); loadUpdateSettings(); setInterval(refresh,1000); }

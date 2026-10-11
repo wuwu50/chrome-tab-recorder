@@ -24,7 +24,7 @@ async function offscreen(type, extra = {}) {
   return response.data;
 }
 async function setBadge(phase) {
-  await chrome.action.setBadgeText({text: ['recording','rotating'].includes(phase) ? 'REC' : ['ready','downloading','saving'].includes(phase) ? '存' : ''});
+  await chrome.action.setBadgeText({text: ['recording','rotating'].includes(phase) ? 'REC' : ['ready','downloading','saving','merging'].includes(phase) ? '存' : ''});
   await chrome.action.setBadgeBackgroundColor({color:'#d9415b'});
 }
 async function handle(message) {
@@ -77,7 +77,7 @@ async function handle(message) {
         const state = await offscreen('status');
         if (!['idle','error'].includes(state.phase)) throw new Error('請先停止錄影並儲存或刪除暫存影片。');
         const streamId = await chrome.tabCapture.getMediaStreamId({targetTabId:tab.id});
-        const result = await offscreen('start',{streamId,title:tab.title || 'Chrome 分頁',tabId:tab.id,quality:message.quality,monitorAudio:message.monitorAudio === true});
+        const result = await offscreen('start',{streamId,title:tab.title || 'Chrome 分頁',tabId:tab.id,quality:message.quality,monitorAudio:message.monitorAudio === true,mergeAfterStop:message.mergeAfterStop !== false});
         await chrome.storage.local.remove('lastError');
         await setBadge('recording');
         return result;
@@ -85,6 +85,7 @@ async function handle(message) {
     }
     case 'stop': return offscreen('stop');
     case 'download': return offscreen('download');
+    case 'save-segments': return offscreen('save-segments');
     case 'discard': return offscreen('discard');
     case 'state':
       await setBadge(message.phase);

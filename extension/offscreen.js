@@ -17,6 +17,9 @@ const maxSegmentDuration = 5 * 60 * 1000;
 const diskReserve = 256 * 1048576;
 const tempName = 'recording.tmp';
 const mimeTypes = ['video/mp4;codecs=avc1,mp4a.40.2','video/mp4'];
+function shouldMerge() {
+  return !!journal?.meta?.segmented && journal.meta.mergeAfterStop !== false && !(journal.meta.downloaded || 0) && journal.parts().length > 1;
+}
 const profiles = {
   normal:{fps:30,bitrate:4000000},high:{fps:30,bitrate:8000000},
   '1080p60':{width:1920,height:1080,fps:60,bitrate:16000000},
@@ -32,7 +35,7 @@ async function checkSpace(extra = 0) {
   if (!navigator.storage.estimate) return;
   const {usage,quota} = await navigator.storage.estimate();
   // Reserve room for assembling the MP4 while its durable chunks still exist.
-  const assemblyBytes = journal?.meta?.segmented ? journal.meta.segments.reduce((largest,part)=>Math.max(largest,part.bytes),journal.meta.activeBytes || 0) : state.bytes;
+  const assemblyBytes = shouldMerge() ? journal.meta.bytes : journal?.meta?.segmented ? journal.meta.segments.reduce((largest,part)=>Math.max(largest,part.bytes),journal.meta.activeBytes || 0) : state.bytes;
   if (Number.isFinite(quota) && Number.isFinite(usage) && quota - usage < assemblyBytes + extra * 2 + diskReserve) throw new Error('Chrome 暫存空間不足，已停止以保留先前片段。請釋放磁碟空間後重新儲存影片。');
 }
 async function assemble() {
@@ -43,7 +46,25 @@ async function assemble() {
   writer ||= await fileHandle.createWritable();
   const part = journal.parts()[journal.meta.downloaded || 0];
   if (!part) throw new Error('所有影片段落都已儲存。');
-  try { await journal.assemble(writer,part); await writer.close(); writer = null; assembled = true; }
+  try {
+    if (shouldMerge()) {
+      const previousPhase = state.phase;
+      state.phase = 'merging'; state.mergeProgress = 0; state.merged = false; notify();
+      let progressAt = 0;
+      try {
+        await MergeMp4.write({parts:journal.parts(),getBlob:part=>journal.blob(part),writable:writer,onProgress:progress=>{
+          state.mergeProgress = Math.floor(progress.progress * 100); state.mergePart = progress.part;
+          if (Date.now() - progressAt > 500) { progressAt = Date.now(); notify(); }
+        }});
+        state.merged = true; state.mergeProgress = 100;
+        diagnostic('所有片段已合併成單一 MP4');
+      } finally { state.phase = previousPhase; notify(); }
+    } else {
+      state.merged = false;
+      await journal.assemble(writer,part);
+    }
+    await writer.close(); writer = null; assembled = true;
+  }
   catch (error) { await writer.abort().catch(() => {}); writer = null; throw error; }
 }
 const initialized = (async () => {
@@ -125,7 +146,7 @@ async function start(message) {
     const stamp = new Date().toLocaleString('sv-SE').replace(/[^0-9]/g,'');
     filename = `分頁錄影-${stamp}.mp4`;
     await checkSpace();
-    await journal.begin({filename,startedAt:Date.now(),captureFormat:state.captureFormat,requestedFps:state.requestedFps,segmented:true});
+    await journal.begin({filename,startedAt:Date.now(),captureFormat:state.captureFormat,requestedFps:state.requestedFps,segmented:true,mergeAfterStop:message.mergeAfterStop !== false});
     attachRecorder();
     for (const track of media.getTracks()) track.addEventListener('ended',() => {
       if (['recording','rotating'].includes(state.phase)) { diagnostic('擷取軌道結束'); stop().catch(() => {}); }
@@ -234,11 +255,12 @@ async function download() {
   await assemble();
   const file = await fileHandle.getFile();
   if (!file.size) throw new Error('暫存影片是空的，請刪除並重新錄影。');
+  const parts = journal.parts();
+  const outputFilename = state.merged || (parts.length === 1 && journal.meta.mergeAfterStop !== false) ? filename : parts[journal.meta.downloaded || 0].filename;
   // Re-read persisted settings for recovery and retries after folder reauthorization.
   outputDirectory = await OutputFolder.authorized(await OutputFolder.stored());
   if (outputDirectory) {
-    const part = journal.parts()[journal.meta.downloaded || 0];
-    await OutputFolder.save(outputDirectory,part.filename,file);
+    await OutputFolder.save(outputDirectory,outputFilename,file);
     diagnostic('MP4 已直接存入設定資料夾');
     await discardAfterDownload();
     return {...state};
@@ -246,8 +268,7 @@ async function download() {
   if (blobUrl) URL.revokeObjectURL(blobUrl);
   blobUrl = URL.createObjectURL(file);
   state.phase = 'downloading'; notify();
-    const parts = journal.parts();
-    const response = await chrome.runtime.sendMessage({target:'background',type:'save-file',url:blobUrl,filename:parts[journal.meta.downloaded || 0].filename,saveAs:parts.length === 1});
+    const response = await chrome.runtime.sendMessage({target:'background',type:'save-file',url:blobUrl,filename:outputFilename,saveAs:state.merged || parts.length === 1});
     if (!response?.ok) throw new Error(response?.error || '無法儲存影片。');
   } catch (error) {
     state.phase = 'ready'; state.error = `儲存未完成：${error.message}。請按「重新儲存影片」。`; diagnostic(state.error); notify();
@@ -266,6 +287,11 @@ async function handle(message) {
     case 'start': return start(message);
     case 'stop': return stop();
     case 'download': return download();
+    case 'save-segments':
+      if (state.phase !== 'ready') throw new Error('請先等待錄影及合併完成。');
+      journal.meta.mergeAfterStop = false; await journal.saveMeta();
+      assembled = false; state.merged = false; state.error = '';
+      return download();
     case 'discard': await discard(); return {...state};
     case 'download-ended':
       if (message.complete) await discardAfterDownload();
@@ -275,7 +301,7 @@ async function handle(message) {
   }
 }
 async function discardAfterDownload() {
-  journal.meta.downloaded = (journal.meta.downloaded || 0) + 1;
+  journal.meta.downloaded = state.merged ? journal.parts().length : (journal.meta.downloaded || 0) + 1;
   await journal.saveMeta(); state.savedParts = journal.meta.downloaded;
   if (journal.meta.downloaded < journal.parts().length) {
     if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = null;

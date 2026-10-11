@@ -40,6 +40,8 @@ jobs:
           node tests/test-updates.cjs
           node tests/test-audio-routing.cjs
           node tests/test-background.cjs
+          node tests/test-merge.cjs
+          node --check extension/vendor/mediabunny.mjs
       - uses: actions/download-artifact@v4
         with:
           name: windows-installer

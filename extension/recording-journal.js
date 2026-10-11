@@ -58,6 +58,12 @@ class RecordingJournal {
       await writable.write(file);
     }
   }
+  async blob(part) {
+    const files = [];
+    for (let i=part.start;i<part.end;i++) files.push(await (await this.directory.getFileHandle(`part-${i}`)).getFile());
+    // Blob composition references the committed files; it does not read them into RAM.
+    return new Blob(files,{type:'video/mp4'});
+  }
   async remove() {
     try { await this.root.removeEntry('recording-parts',{recursive:true}); }
     catch (error) { if (error.name !== 'NotFoundError') throw error; }
