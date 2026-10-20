@@ -1,7 +1,7 @@
 {
-  "version": "1.13.0",
-  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.13.0/ChromeTabRecorder-1.13.0-Setup.exe",
-  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.13.0/ChromeTabRecorder-1.13.0.zip",
-  "notes": "分頁影音錄影機 v1.13.0\n\n新增背景儲存佇列。按停止並收完最後一段擷取資料後，即可開始下一次錄影；前一部影片會在背景合併為單一 MP4 並儲存到設定資料夾。背景工作逐一處理，每次錄影使用獨立暫存資料夾，前一部完成不會停止或改變新錄影的畫面與聲音。\n\n介面新增背景儲存清單、進度、個別重試、分段儲存與刪除。重開 Chrome 後會找回多部未完成影片；v1.12.0 以前的未存影片也會保留並列出。\n\n修正錄影時不必要的整部合併影片空間預留，避免已使用直接資料夾存檔時提早判定空間不足。加入 Chrome unlimitedStorage 權限，免除擴充功能一般暫存配額與清除限制；仍需要足夠的實際磁碟空間。寫入失敗或取消時保留原始片段，背景處理未完成時阻擋安裝更新。\n\n已測試同時背景合併與下一次 1080p／120 FPS 擷取、兩部 MP4 播放、音軌隔離、多部中斷取回、個別重試／刪除、下載完成事件與空間預留回歸。\n\n更新前先完成或保留現有錄影；安裝後請在 Chrome 擴充功能頁重新載入。背景儲存時可以操作其他程式或最小化，但請保持 Chrome 開啟。\n",
-  "sha256": "cce3c311fd7a8f5dcabc75115d2dd24e687f4864844ce50465c2c6a8581034e2"
+  "version": "1.14.0",
+  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.14.0/ChromeTabRecorder-1.14.0-Setup.exe",
+  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.14.0/ChromeTabRecorder-1.14.0.zip",
+  "notes": "分頁影音錄影機 v1.14.0\n\n新增安裝後自動重新載入：確認安裝檔全部完成，且錄影、背景合併、下載及待救援影片都處理完畢後，擴充功能自動切換至新版，並重新開啟原控制視窗與錄製目標，不再需要每次到 Chrome 擴充功能頁按刷新。\n\n安裝器會在所有檔案完成後原子寫入完成標記，避免安裝途中載入混合版本；缺少標記、檔案版本不一致、讀取失敗或還有待存影片時均延後。新錄影與重載相互保護，避免更新中斷錄影。\n\n首次從 v1.13 或更早版本升級到此版本，仍需手動重新載入一次以啟用新機制；此後使用 EXE 更新不再需要。首次載入未封裝項目與 ZIP 手動替換不屬於自動安裝流程。控制視窗開啟時會較快檢查；關閉時以 Chrome 排程檢查，省電或休眠可能延後。\n\n已驗證實際獨立 Chrome 擴充功能可自動從舊執行版本切換到新版本、重開控制視窗且不重載循環；錄影及背景工作期間延後重載。\n",
+  "sha256": "41d28ef354406ef43410715ced3200bcb53e2dcc6ab08d90e286fba66209c3c2"
 }
