@@ -84,9 +84,9 @@ async function handle(message) {
       } finally { starting = false; }
     }
     case 'stop': return offscreen('stop');
-    case 'download': return offscreen('download');
-    case 'save-segments': return offscreen('save-segments');
-    case 'discard': return offscreen('discard');
+    case 'download': return offscreen('download',{jobId:message.jobId});
+    case 'save-segments': return offscreen('save-segments',{jobId:message.jobId});
+    case 'discard': return offscreen('discard',{jobId:message.jobId});
     case 'state':
       await setBadge(message.phase);
       await chrome.storage.local.set({lastError:message.error || ''});

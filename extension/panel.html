@@ -14,10 +14,10 @@
       <p id="segments" class="target-help"></p>
       <div class="target"><div class="target-icon">▣</div><div class="target-content"><div class="section-label">錄製分頁</div><div id="title">正在取得目標…</div><div id="site"></div></div><button id="locate" class="text-button">查看分頁 ↗</button></div>
       <p class="target-help">要更換目標，請在想錄製的分頁點工具列圖示，再按「開啟獨立控制視窗」。</p>
-      <div class="actions"><button id="start" class="primary" disabled>● 開始錄影</button><button id="stop" class="stop" disabled>■ 停止、合併並儲存</button></div>
+      <div class="actions"><button id="start" class="primary" disabled>● 開始錄影</button><button id="stop" class="stop" disabled>■ 停止並背景儲存</button></div>
       <div class="recovery"><button id="retry" class="primary" hidden>重新儲存影片</button><button id="save-segments" class="text-button" hidden>改用分段儲存</button><button id="discard" class="text-button" hidden>刪除暫存影片</button></div>
       <p id="error" role="alert"></p>
-      <button id="diagnostics" class="text-button">匯出錯誤紀錄</button>
+      <section id="background-jobs" hidden><h2>背景儲存</h2><p class="target-help">前一部影片儲存中，也能開始下一次錄影。請保持 Chrome 開啟，等所有影片儲存完成再更新程式。</p><div id="job-list"></div></section><button id="diagnostics" class="text-button">匯出錯誤紀錄</button>
     </section>
     <aside>
       <section class="settings"><h2>錄製設定</h2><label for="quality">畫面品質</label><select id="quality"><option value="1080p120" selected>1080p · 120 FPS / 32 Mbps</option><option value="1080p60">1080p · 60 FPS / 16 Mbps</option><option value="normal">標準 · 30 fps / 4 Mbps</option><option value="high">高畫質 · 30 fps / 8 Mbps</option></select><label class="audio-mode"><input id="monitor-audio" type="checkbox"> 錄影時也播放聲音到喇叭</label><p class="audio-help">預設安靜錄影：分頁靜音會暫時解除，喇叭不播放，停止時恢復。播放器內請保持有聲音。</p><div class="setting-row"><span>畫面來源</span><strong>指定分頁</strong></div><div class="setting-row"><span>音訊來源</span><strong>指定分頁</strong></div><div class="setting-row"><span>麥克風</span><strong class="muted">關閉</strong></div><div class="setting-row"><span>其他程式音訊</span><strong class="muted">不擷取</strong></div><p>影片在本機處理，固定儲存 MP4 影片。</p></section>

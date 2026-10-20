@@ -10,18 +10,19 @@ async function refresh() {
   try {
     const s = await command('status');
     const names = {idle:'尚未開始',starting:'準備錄製…',recording:'● 錄製中',saving:'正在儲存…',ready:'影片已暫存，請儲存',downloading:'正在下載影片…',error:'錄影發生錯誤'};
-    $('status').textContent = names[s.phase] || s.phase;
+    const pending = (s.jobs || []).length;
+    $('status').textContent = s.phase === 'idle' && pending ? `背景處理 ${pending} 部影片，可開始下一次錄影` : names[s.phase] || s.phase;
     $('title').textContent = s.title || '開啟要錄製的網頁，再按開始';
     const seconds = s.startedAt ? Math.floor(((s.endedAt || Date.now()) - s.startedAt) / 1000) : 0;
     $('time').textContent = [Math.floor(seconds / 3600),Math.floor(seconds / 60) % 60,seconds % 60].map(n => String(n).padStart(2,'0')).join(':');
     $('size').textContent = s.bytes ? `已寫入 ${(s.bytes / 1048576).toFixed(1)} MB` : '';
-    $('start').disabled = !['idle','error'].includes(s.phase);
-    $('stop').disabled = s.phase !== 'recording';
+    $('start').disabled = !!s.preparing || !['idle','error'].includes(s.phase);
+    $('stop').disabled = !['recording','rotating'].includes(s.phase);
     $('quality').disabled = !['idle','error'].includes(s.phase);
     $('monitor-audio').disabled = !['idle','error'].includes(s.phase);
     $('retry').hidden = s.phase !== 'ready';
     $('discard').hidden = s.phase !== 'ready';
-    $('error').textContent = s.error || '';
+    $('error').textContent = s.error || ((s.jobs || []).some(job=>job.error) ? '有影片尚未儲存完成，請開啟獨立控制視窗處理。' : '');
   } catch (error) { $('error').textContent = error.message; }
 }
 async function run(type, extra = {}) {

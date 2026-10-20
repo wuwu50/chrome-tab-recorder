@@ -2,16 +2,17 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8');
+const source = fs.readFileSync(path.join(__dirname,'../extension/recording-session.js'),'utf8');
 const journalSource = fs.readFileSync(path.join(__dirname,'../extension/recording-journal.js'),'utf8');
-function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false,mp4Supported = true,files = new Map(),slowDisk = false,quota = 1e12,assemblyFails = false,segmentLimit = null, folder = null, mergeFails = false} = {}) {
+function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false,mp4Supported = true,files = new Map(),slowDisk = false,quota = 1e12,assemblyFails = false,segmentLimit = null, folder = null, mergeFails = false, manager = false, saveGate = null, usedSpace = 0} = {}) {
   let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0, speakerConnections = 0;
-  const downloadRequests=[];
+  const downloadRequests=[],streams=[],messages=[];
   const tracks = ['video','audio'].map(kind => ({kind,stop(){stopped++},addEventListener(name,fn){this.ended = fn}}));
   tracks[0].getSettings = () => settingsOverride || ({width:constraints?.video.mandatory.maxWidth || 1280,height:constraints?.video.mandatory.maxHeight || 720,frameRate:constraints?.video.mandatory.maxFrameRate || 30});
   const stream = {getTracks:()=>tracks,getVideoTracks:()=>[tracks[0]],getAudioTracks:()=>[tracks[1]]};
   const missing = () => Object.assign(Error('missing'),{name:'NotFoundError'});
-  const directory = prefix => ({
+  const directory = prefix => ({kind:'directory',
+    async *entries(){const names=new Set([...files.keys()].filter(key=>key.startsWith(prefix)).map(key=>key.slice(prefix.length).split('/')[0]).filter(Boolean));for(const name of names){if(files.has(prefix+name+'/'))yield [name,directory(prefix+name+'/')];else yield [name,{kind:'file'}]}} ,
     async getDirectoryHandle(name,options={}) {
       const key=prefix+name+'/';
       if(!files.has(key) && !options.create)throw missing();
@@ -41,26 +42,28 @@ function setup({captureFails = false,saveFails = false,settingsOverride = null,t
     stop(){assert.equal(this.state,'recording');this.state='inactive';queueMicrotask(()=>{this.ondataavailable({data:new Blob(['last'])});this.onstop()})}
   }
   const context = vm.createContext({
-    chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn}},async sendMessage(m){
+    chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn}},async sendMessage(m){messages.push(m);
       if(m.type==='prepare-audio')return {ok:true,data:{originallyMuted:tabMuted}};
       if(m.type==='save-file'){downloads++;downloadRequests.push(m);if(saveFails)return {ok:false,error:'cancelled'};return {ok:true,data:{downloadId:7}}}return {ok:true};
     }}},
-    navigator:{storage:{getDirectory:async()=>root,estimate:async()=>({usage:0,quota})},mediaDevices:{async getUserMedia(c){constraints=c;if(captureFails)throw Error('denied');return stream}}},
+    navigator:{storage:{getDirectory:async()=>root,estimate:async()=>({usage:usedSpace,quota})},mediaDevices:{async getUserMedia(c){constraints=c;if(captureFails)throw Error('denied');if(manager){const captureTracks=tracks.map(track=>({...track,readyState:'live',stop(){this.readyState='ended';stopped++}}));const capture={getTracks:()=>captureTracks,getVideoTracks:()=>[captureTracks[0]],getAudioTracks:()=>[captureTracks[1]]};streams.push(capture);return capture}return stream}}},
     MediaRecorder:Recorder,AudioContext:class{createMediaStreamSource(){return {connect(){speakerConnections++}}}destination={};async resume(){}async close(){}},
-    OutputFolder:{stored:async()=>folder,authorized:async h=>{if(h?.denied)throw Error('允許存取');return h},save:async(dir,name,file)=>{if(dir.fail)throw Error('destination full');dir.saved ||= [];let bytes;if(typeof file==='function'){const chunks=[];await file({async write(blob){chunks.push(blob)}});bytes=await new Blob(chunks).text()}else bytes=await file.text();dir.saved.push({name,bytes})}},
+    OutputFolder:{stored:async()=>folder,authorized:async h=>{if(h?.denied)throw Error('允許存取');return h},save:async(dir,name,file)=>{if(saveGate)await saveGate(name);if(dir.fail)throw Error('destination full');dir.saved ||= [];let bytes;if(typeof file==='function'){const chunks=[];await file({async write(blob){chunks.push(blob)}});bytes=await new Blob(chunks).text()}else bytes=await file.text();dir.saved.push({name,bytes})}},
     Blob,MergeMp4:{async write({parts,getBlob,writable,onProgress}){if(mergeFails)throw Error('broken merge input');for(let i=0;i<parts.length;i++){await writable.write(await getBlob(parts[i]));onProgress({part:i+1,total:parts.length,progress:(i+1)/parts.length})}}},
-    URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Date,Promise,console
+    crypto:require('node:crypto').webcrypto,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Date,Promise,console
   });
   vm.runInContext(journalSource,context);
   vm.runInContext(segmentLimit === null ? source : source.replace('const maxSegmentBytes = 1024 * 1048576;',`const maxSegmentBytes = ${segmentLimit};`),context);
+  if(manager)vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8'),context);
+  else vm.runInContext("const testSession = createRecordingSession(); chrome.runtime.onMessage.addListener((m,s,r)=>{testSession.handle(m).then(data=>r({ok:true,data}),error=>r({ok:false,error:error.message}));return true});",context);
   const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,...(type==='start'?{mergeAfterStop:false}:{}),...extra},{id:'test'},resolve));
-  return {command,tracks,files,emit(data){Recorder.instance.ondataavailable({data})},get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,downloadRequests,speakerConnections,encoding:Recorder.instance?.options}}};
+  return {command,tracks,files,streams,messages,emit(data){Recorder.instance.ondataavailable({data})},get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,downloadRequests,speakerConnections,encoding:Recorder.instance?.options}}};
 }
 async function until(test,phase) {
   for(let i=0;i<100;i++){const s=await test.command('status');if(s.data.phase===phase)return s.data;await new Promise(r=>setTimeout(r,5))}
   throw Error(`never reached ${phase}`);
 }
-(async()=>{
+async function runTests(){
   async function rotated(test){await test.command('start',{streamId:'merge',mergeAfterStop:true});test.emit(new Blob(['12345678']));for(let i=0;i<100;i++){const s=(await test.command('status')).data;if(s.phase==='recording'&&s.partNumber===2)return;await new Promise(r=>setTimeout(r,5))}throw Error('rotation timeout')}
   const merge=setup({segmentLimit:12});await rotated(merge);await merge.command('stop');await until(merge,'downloading');
   assert.equal(merge.stats.downloadRequests.length,1);assert(!merge.stats.downloadRequests[0].filename.includes('第001段'));assert.equal(merge.stats.downloadRequests[0].saveAs,true);
@@ -217,4 +220,6 @@ async function until(test,phase) {
   console.log('PASS: tab-only media, concurrent guard, final chunk flush, track cleanup, download retry, temp cleanup, target closed, acquisition failure.');
   console.log('PASS: committed chunk recovery after process loss, overwrite guard, bounded queue stop, storage quota guard, corrupted journal protection.');
   console.log('PASS: muxer rotation retains tab/audio/120 FPS, independent MP4 parts, final chunks, ordered downloads, cancellation and restart resume.');
-})().catch(error=>{console.error(error);process.exitCode=1});
+}
+module.exports={setup,until};
+if(require.main===module)runTests().catch(error=>{console.error(error);process.exitCode=1});

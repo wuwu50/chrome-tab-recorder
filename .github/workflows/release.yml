@@ -41,6 +41,7 @@ jobs:
           node tests/test-audio-routing.cjs
           node tests/test-background.cjs
           node tests/test-merge.cjs
+          node tests/test-save-queue.cjs
           node --check extension/vendor/mediabunny.mjs
       - uses: actions/download-artifact@v4
         with:
