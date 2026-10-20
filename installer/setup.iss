@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.13.0"
+  #define AppVersion "1.14.0"
 #endif
 [Setup]
 AppId={{589A672F-832B-4DCF-8457-B0F2877E1B8F}
@@ -34,3 +34,27 @@ Root: HKCU; Subkey: "Software\Classes\chrometabrecorder"; ValueType: string; Val
 Root: HKCU; Subkey: "Software\Classes\chrometabrecorder\shell\open\command"; ValueType: string; ValueData: """{app}\ChromeTabRecorder.exe"" --update"
 [Run]
 Filename: "{app}\ChromeTabRecorder.exe"; Description: "開啟分頁影音錄影機安裝與啟動介面"; Flags: nowait postinstall skipifsilent
+
+[InstallDelete]
+Type: files; Name: "{app}\extension\install-complete.json"
+Type: files; Name: "{app}\extension\install-complete.json.tmp"
+
+[UninstallDelete]
+Type: files; Name: "{app}\extension\install-complete.json"
+Type: files; Name: "{app}\extension\install-complete.json.tmp"
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Marker, Temporary: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    Marker := ExpandConstant('{app}\extension\install-complete.json');
+    Temporary := Marker + '.tmp';
+    if not SaveStringToFile(Temporary, '{"version":"{#AppVersion}","complete":true}', False) then
+      RaiseException('Cannot write installation completion marker.');
+    if not RenameFile(Temporary, Marker) then
+      RaiseException('Cannot finalize installation completion marker.');
+  end;
+end;

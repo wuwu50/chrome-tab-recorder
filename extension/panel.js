@@ -212,13 +212,13 @@ $('update-install').addEventListener('click',event=>{
   if (busy || hasPendingJobs() || !['idle','error'].includes(state.phase)) {
     event.preventDefault();updateMessage('請先停止錄影並完成儲存，才能安裝更新。',true);
   } else {
-    updateMessage('已呼叫自動更新器，請在更新視窗確認安裝。會自動下載並沿用原本位置，不需要選擇 EXE 或資料夾。若沒有開啟，請使用桌面錄影機的「檢查更新並安裝」。');
+    updateMessage('已呼叫自動更新器，請在更新視窗確認安裝。會自動下載並沿用原本位置，不需要選擇 EXE 或資料夾。安裝完成後會在空閒時自動啟用新版。若沒有開啟更新器，請使用桌面錄影機的「檢查更新並安裝」。');
   }
 });
 if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.13.0';
+  $('version').textContent = 'v1.14.0';
   updateButtons();
 } else { refresh(); loadFolder(); loadUpdateSettings(); setInterval(refresh,1000); }

@@ -5,7 +5,7 @@ const source=fs.readFileSync('extension/background.js','utf8');
  const local={},items=new Map(),finished=[];
  const command=(type,extra={})=>new Promise(resolve=>listener({target:'background',type,...extra},{id:'test'},resolve));
  const context=vm.createContext({
-  importScripts(){},restoreCapturedAudio:async()=>{restorations++},setTimeout,Date,Promise,
+  importScripts(){},checkForInstalledUpdate:async()=>false,setupInstalledUpdateWatch(){},updateReloading:false,restoreCapturedAudio:async()=>{restorations++},setTimeout,Date,Promise,
   chrome:{
    runtime:{id:'test',getURL:p=>p,getManifest:()=>({version:'1.8.0'}),getContexts:async()=>created?[{}]:[],onStartup:{addListener(){}},onMessage:{addListener(fn){listener=fn}},
     async sendMessage(message){

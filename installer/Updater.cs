@@ -10,7 +10,7 @@ using System.Windows.Forms;
 static class Updater {
   public static Form CreateWindow() {
     Form form=new Form { Text="分頁影音錄影機 · 自動更新",ClientSize=new System.Drawing.Size(540,210),StartPosition=FormStartPosition.CenterScreen,Font=new System.Drawing.Font("Microsoft JhengHei",10),FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false };
-    Label description=new Label { Text="確認新版後，自動下載、驗證並安裝到原本位置。\r\n不需要選擇 EXE 檔或資料夾。\r\n\r\n安裝後只需在 Chrome 擴充功能頁按「重新載入」。\r\n不要再次按「載入未封裝項目」。",Dock=DockStyle.Top,Height=140,Padding=new Padding(16) };
+    Label description=new Label { Text="確認新版後，自動下載、驗證並安裝到原本位置。\r\n不需要選擇 EXE 檔或資料夾。\r\n\r\n啟用自動重載後，安裝完成會自動切換新版。\r\n首次從 v1.13 或更早版本升級，仍須手動重新載入一次。",Dock=DockStyle.Top,Height=140,Padding=new Padding(16) };
     Button update=new Button { Text="檢查更新並安裝",Dock=DockStyle.Bottom,Height=45 };
     form.Controls.Add(description);form.Controls.Add(update);
     update.Click += async delegate { await Run(form,update); };
@@ -43,7 +43,7 @@ static class Updater {
       }
       string url=ValidateFeed(feed,System.Reflection.Assembly.GetExecutingAssembly().GetName().Version);
       if (url==null) { MessageBox.Show(owner,"目前已是最新版本。","程式更新"); return; }
-      string text="發現新版 v" + feed["version"] + "。\r\n\r\n請確認所有錄影已停止並完成儲存。\r\n確認後會自動下載、驗證並安裝到原本位置，不需要選擇檔案或資料夾。\r\n安裝後請在 Chrome 擴充功能頁重新載入。\r\n\r\n現在安裝嗎？";
+      string text="發現新版 v" + feed["version"] + "。\r\n\r\n請確認所有錄影已停止並完成儲存。\r\n確認後會自動下載、驗證並安裝到原本位置，不需要選擇檔案或資料夾。\r\n啟用自動重載後，安裝完成將自動切換新版；錄影或儲存中會延後。\r\n\r\n現在安裝嗎？";
       if (MessageBox.Show(owner,text,"確認更新",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes) return;
       string cacheDir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChromeTabRecorder","Updates");
       Directory.CreateDirectory(cacheDir);

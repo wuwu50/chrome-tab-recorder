@@ -1,4 +1,4 @@
-importScripts('updates.js','audio-routing.js');
+importScripts('updates.js','audio-routing.js','installed-update.js');
 let starting = false;
 let creating = null;
 let diagnosticWrites = Promise.resolve();
@@ -52,6 +52,7 @@ async function handle(message) {
       await ensureOffscreen();
       const result = await offscreen('status');
       if (!result.error) result.error = (await chrome.storage.local.get('lastError')).lastError || '';
+      void checkForInstalledUpdate();
       return result;
     }
     case 'diagnostics':
@@ -68,6 +69,7 @@ async function handle(message) {
       await diagnosticWrites; return null;
     }
     case 'start': {
+      if (updateReloading) throw new Error('新版正在自動啟用，請稍候重新開啟錄影介面。');
       if (starting) throw new Error('正在準備錄製，請稍候。');
       starting = true;
       try {
@@ -132,3 +134,4 @@ chrome.runtime.onStartup.addListener(() => setBadge('idle'));
 chrome.tabs.onUpdated.addListener((tabId,change) => {
   capturedTabMuted(tabId,change).catch(error => chrome.storage.local.set({lastError:`分頁音訊處理失敗：${error.message}`}));
 });
+setupInstalledUpdateWatch();
