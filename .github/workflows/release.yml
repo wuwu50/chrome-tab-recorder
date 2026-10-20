@@ -2,7 +2,7 @@ name: Publish recorder
 on:
   push:
     branches: [main]
-    paths: ['extension/**', 'installer/**', 'tests/**', '.github/workflows/release.yml']
+    paths: ['extension/**', 'installer/**', 'tests/**', '.github/**']
   workflow_dispatch:
 permissions:
   contents: write
@@ -10,79 +10,39 @@ concurrency:
   group: recorder-release
   cancel-in-progress: false
 jobs:
-  windows-installer:
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build installer
-        shell: pwsh
-        run: ./installer/build.ps1
-      - name: Verify install and uninstall
-        shell: pwsh
-        run: ./installer/test-install.ps1
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: dist/*-Setup.exe
-          if-no-files-found: error
   release:
-    needs: windows-installer
-    runs-on: ubuntu-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Validate
+      - name: Validate recorder and queue
+        shell: pwsh
         run: |
-          for file in extension/*.js; do node --check "$file"; done
-          node tests/test-recorder.cjs
-          node tests/test-updates.cjs
-          node tests/test-audio-routing.cjs
-          node tests/test-background.cjs
-          node tests/test-merge.cjs
-          node tests/test-save-queue.cjs
-          node --check extension/vendor/mediabunny.mjs
-      - uses: actions/download-artifact@v4
-        with:
-          name: windows-installer
-          path: dist
-      - name: Build and publish
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem extension/*.js,extension/vendor/*.mjs | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Syntax failed: $($_.Name)" }
+          }
+          foreach ($test in @('test-recorder','test-updates','test-audio-routing','test-background','test-merge','test-save-queue')) {
+            node "tests/$test.cjs"
+            if ($LASTEXITCODE -ne 0) { throw "Test failed: $test" }
+          }
+      - name: Build installer
+        shell: pwsh
+        run: ./installer/build.ps1
+      - name: Verify release packaging and feed
+        shell: pwsh
+        run: python tests/test-publish.py
+      - name: Verify install upgrade and uninstall
+        shell: pwsh
+        run: ./installer/test-install.ps1
+      - name: Publish verified installer ZIP and update feed
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           COMMIT: ${{ github.sha }}
-        run: |
-          VERSION=$(node -p "require('./extension/manifest.json').version")
-          mkdir -p dist
-          (cd extension && zip -r "../dist/ChromeTabRecorder-$VERSION.zip" .)
-          if gh release view "v$VERSION" --repo "$REPOSITORY" >/dev/null 2>&1; then
-            echo "Version v$VERSION is already published. Increment manifest.json version before publishing again."
-            exit 1
-          fi
-          gh release create "v$VERSION" "dist/ChromeTabRecorder-$VERSION.zip" "dist/ChromeTabRecorder-$VERSION-Setup.exe" --repo "$REPOSITORY" --target "$COMMIT" --title "分頁影音錄影機 v$VERSION" --notes-file RELEASE_NOTES.md
-      - name: Publish update feed
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          python - <<'PY'
-          import base64, hashlib, json, os, subprocess
-          from pathlib import Path
-          repo = os.environ['REPOSITORY']
-          version = json.loads(Path('extension/manifest.json').read_text())['version']
-          feed = {'version': version, 'downloadUrl': f'https://github.com/{repo}/releases/download/v{version}/ChromeTabRecorder-{version}-Setup.exe', 'zipUrl': f'https://github.com/{repo}/releases/download/v{version}/ChromeTabRecorder-{version}.zip', 'notes': Path('RELEASE_NOTES.md').read_text()}
-          feed['sha256'] = hashlib.sha256(Path(f'dist/ChromeTabRecorder-{version}-Setup.exe').read_bytes()).hexdigest()
-          content = json.dumps(feed, ensure_ascii=False, indent=2) + '\n'
-          result = subprocess.run(['gh','api',f'repos/{repo}/contents/version.json?ref=main'], capture_output=True, text=True)
-          if result.returncode:
-              # Allow a missing initial feed; other API failures must stop publication.
-              if '404' not in result.stderr:
-                  raise RuntimeError(result.stderr)
-              sha = None
-          else:
-              sha = json.loads(result.stdout)['sha']
-          payload = {'message': f'Publish update feed for v{version}', 'branch': 'main', 'content': base64.b64encode(content.encode()).decode()}
-          if sha: payload['sha'] = sha
-          subprocess.run(['gh','api','--method','PUT',f'repos/{repo}/contents/version.json','--input','-'], input=json.dumps(payload), text=True, check=True, stdout=subprocess.DEVNULL)
-          PY
+          PYTHONUTF8: '1'
+        shell: pwsh
+        run: python .github/scripts/publish-release.py
