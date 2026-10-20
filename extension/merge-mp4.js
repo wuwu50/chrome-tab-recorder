@@ -27,7 +27,7 @@ const MergeMp4 = {
             audioSource = audio ? new M.EncodedAudioPacketSource(audioCodec) : null;
             output = new M.Output({format:new M.Mp4OutputFormat({fastStart:false}),target:new M.StreamTarget(new WritableStream({
               write:chunk => writable.write({type:'write',position:chunk.position,data:chunk.data})
-            }),{chunked:true,chunkSize:1048576})});
+            }),{chunked:true,chunkSize:8 * 1048576})});
             output.addVideoTrack(videoSource,{rotation:video.rotation});
             if (audioSource) output.addAudioTrack(audioSource);
             await output.start();
@@ -38,8 +38,21 @@ const MergeMp4 = {
           const base = await input.getFirstTimestamp(tracks);
           const end = await input.computeDuration(tracks);
           if (!Number.isFinite(base) || !Number.isFinite(end) || end <= base) throw new Error(`第 ${index+1} 段長度無法讀取。`);
-          videoIterator = new M.EncodedPacketSink(video).packets(undefined,undefined,{verifyKeyPackets:true});
-          audioIterator = audio ? new M.EncodedPacketSink(audio).packets() : null;
+          // Pull one packet at a time. The library's general-purpose iterator
+          // maintains a sliding queue of every packet read in the last second;
+          // fast offline remuxing makes that queue unnecessarily expensive.
+          const iterator = track => {
+            const sink = new M.EncodedPacketSink(track);
+            let previous, started = false;
+            return {async next() {
+              const options = {verifyKeyPackets:track === video};
+              const packet = started ? await sink.getNextPacket(previous,options) : await sink.getFirstPacket(options);
+              started = true; previous = packet;
+              return packet ? {done:false,value:packet} : {done:true};
+            }};
+          };
+          videoIterator = iterator(video);
+          audioIterator = audio ? iterator(audio) : null;
           let v = await videoIterator.next(), a = audioIterator ? await audioIterator.next() : {done:true};
           if (v.done || v.value.type !== 'key') throw new Error(`第 ${index+1} 段缺少起始關鍵影格，請使用分段儲存。`);
           // Interleave tracks instead of buffering all video while waiting for audio.
@@ -65,7 +78,7 @@ const MergeMp4 = {
           offset += Math.max(end,segmentEnd) - base;
           onProgress({part:index+1,total:parts.length,progress:(index+1)/parts.length});
         } finally {
-          await videoIterator?.return(); await audioIterator?.return(); input.dispose();
+          input.dispose();
         }
       }
       if (!output || !packetsWritten) throw new Error('沒有可合併的影片。');
