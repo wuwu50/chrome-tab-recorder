@@ -1,7 +1,7 @@
 {
-  "version": "1.14.0",
-  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.14.0/ChromeTabRecorder-1.14.0-Setup.exe",
-  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.14.0/ChromeTabRecorder-1.14.0.zip",
-  "notes": "分頁影音錄影機 v1.14.0\n\n新增安裝後自動重新載入：確認安裝檔全部完成，且錄影、背景合併、下載及待救援影片都處理完畢後，擴充功能自動切換至新版，並重新開啟原控制視窗與錄製目標，不再需要每次到 Chrome 擴充功能頁按刷新。\n\n安裝器會在所有檔案完成後原子寫入完成標記，避免安裝途中載入混合版本；缺少標記、檔案版本不一致、讀取失敗或還有待存影片時均延後。新錄影與重載相互保護，避免更新中斷錄影。\n\n首次從 v1.13 或更早版本升級到此版本，仍需手動重新載入一次以啟用新機制；此後使用 EXE 更新不再需要。首次載入未封裝項目與 ZIP 手動替換不屬於自動安裝流程。控制視窗開啟時會較快檢查；關閉時以 Chrome 排程檢查，省電或休眠可能延後。\n\n已驗證實際獨立 Chrome 擴充功能可自動從舊執行版本切換到新版本、重開控制視窗且不重載循環；錄影及背景工作期間延後重載。\n",
-  "sha256": "41d28ef354406ef43410715ced3200bcb53e2dcc6ab08d90e286fba66209c3c2"
+  "version": "1.15.0",
+  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.15.0/ChromeTabRecorder-1.15.0-Setup.exe",
+  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.15.0/ChromeTabRecorder-1.15.0.zip",
+  "notes": "分頁影音錄影機 v1.15.0\n\n加速長影片合併：改用逐筆讀取封包，避開高速離線處理時的滑動佇列負擔；輸出批次由 1 MiB 提高為 8 MiB，減少檔案寫入次數。\n\n本機 Chrome 合併約 104 MiB、八段合成影音的測試由約 8 秒縮短至約 2 秒。實際速度受檔案大小、磁碟、CPU 與同時錄影負載影響，並非所有電腦固定快四倍。\n\n維持單一 MP4、不重新壓縮、不降低畫質與 FPS；保留所有影音封包與時間順序及關鍵影格驗證。背景儲存時可開始下一次錄影；輸出失敗保留原片段供重試及分段救援。\n\n已驗證實際 H.264/AAC 封包內容、順序、長度及超過 4 GiB 的 MP4 位移；實際 Chrome 可在舊影片合併期間開始另一個 1080p／120 FPS 擷取，兩份輸出均可播放。\n\n延續 v1.14 安裝完成後安全自動重載。若仍使用 v1.13 或更早版本，首次升級後需手動重新載入一次才能啟用自動重載；有未存影片時請先完成儲存。\n",
+  "sha256": "8d77cf2838fdadc03c9b4569785b8eba1c79f084678df5815f13676c4bb8a09e"
 }
