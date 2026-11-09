@@ -1,7 +1,7 @@
 {
-  "version": "1.15.0",
-  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.15.0/ChromeTabRecorder-1.15.0-Setup.exe",
-  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.15.0/ChromeTabRecorder-1.15.0.zip",
-  "notes": "分頁影音錄影機 v1.15.0\n\n加速長影片合併：改用逐筆讀取封包，避開高速離線處理時的滑動佇列負擔；輸出批次由 1 MiB 提高為 8 MiB，減少檔案寫入次數。\n\n本機 Chrome 合併約 104 MiB、八段合成影音的測試由約 8 秒縮短至約 2 秒。實際速度受檔案大小、磁碟、CPU 與同時錄影負載影響，並非所有電腦固定快四倍。\n\n維持單一 MP4、不重新壓縮、不降低畫質與 FPS；保留所有影音封包與時間順序及關鍵影格驗證。背景儲存時可開始下一次錄影；輸出失敗保留原片段供重試及分段救援。\n\n已驗證實際 H.264/AAC 封包內容、順序、長度及超過 4 GiB 的 MP4 位移；實際 Chrome 可在舊影片合併期間開始另一個 1080p／120 FPS 擷取，兩份輸出均可播放。\n\n延續 v1.14 安裝完成後安全自動重載。若仍使用 v1.13 或更早版本，首次升級後需手動重新載入一次才能啟用自動重載；有未存影片時請先完成儲存。\n",
-  "sha256": "8d77cf2838fdadc03c9b4569785b8eba1c79f084678df5815f13676c4bb8a09e"
+  "version": "1.16.0",
+  "downloadUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.16.0/ChromeTabRecorder-1.16.0-Setup.exe",
+  "zipUrl": "https://github.com/wuwu50/chrome-tab-recorder/releases/download/v1.16.0/ChromeTabRecorder-1.16.0.zip",
+  "notes": "分頁影音錄影機 v1.16.0\n\n## 同時錄製兩個 Chrome 分頁（v1.16.0）\n\n在第一個視窗的目標分頁點錄影機圖示並開始，再到第二個視窗的目標分頁點同一個圖示並開始。各自只錄所選分頁的畫面與聲音，會分別儲存為兩支 MP4。從各自分頁的錄影機按鈕停止，也可在獨立控制視窗的「其他分頁錄影」停止指定錄影。停止其中一個不會中斷另一個。\n\n同時錄製上限是兩個分頁；不能重複錄製同一分頁。兩個錄影可各選畫質；若高畫質錄影有掉幀，可先選 1080p／60 FPS 或標準模式。兩部影片的背景儲存依序執行，仍可繼續錄製。\n\n已用實際 Chrome 的兩個視窗測試同時擷取、個別停止、靜音恢復與兩支 MP4 的畫面和音訊分離。\n",
+  "sha256": "fa19c3cb593096f1e24801a78a9f07199274578b5f808fda420ab1f34656defe"
 }
