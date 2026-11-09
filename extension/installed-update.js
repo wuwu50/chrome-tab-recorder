@@ -3,7 +3,7 @@
 let installedUpdateCheck = null, updateReloading = false, lastInstalledCheck = 0;
 let restoringReloadPanel = false;
 function safeToReload(state) {
-  return state && ['idle','error'].includes(state.phase) && !state.preparing && Array.isArray(state.jobs) && state.jobs.length === 0;
+  return state && ['idle','error'].includes(state.phase) && !state.preparing && !state.captures?.length && Array.isArray(state.jobs) && state.jobs.length === 0;
 }
 async function installedJson(path) {
   const response = await fetch(chrome.runtime.getURL(path)+'?installed='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(4000)});

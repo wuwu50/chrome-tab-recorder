@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const updateSource=fs.readFileSync('extension/updates.js','utf8'),source=fs.readFileSync('extension/installed-update.js','utf8');
-function setup({phase='idle',jobs=[],marker={version:'1.15.0',complete:true},disk={version:'1.15.0'},pending=false,badFetch=false,statusFails=false,startDuringSave=false}={}){
- let reloads=0,opens=0,reads=0,alarm,installed;const local={},session={panelTarget:{id:42},panelWindowId:7};let version='1.14.0';const state={phase,jobs,preparing:pending};
+function setup({phase='idle',jobs=[],captures=[],marker={version:'1.15.0',complete:true},disk={version:'1.15.0'},pending=false,badFetch=false,statusFails=false,startDuringSave=false}={}){
+ let reloads=0,opens=0,reads=0,alarm,installed;const local={},session={panelTarget:{id:42},panelWindowId:7};let version='1.14.0';const state={phase,jobs,captures,preparing:pending};
  const context=vm.createContext({starting:false,Date,Promise,AbortSignal,URL,ensureOffscreen:async()=>{},offscreen:async()=>{if(statusFails)throw Error('unavailable');return state},
  fetch:async url=>{reads++;if(badFetch)throw Error('missing file');const value=url.startsWith('install-complete.json')?marker:disk;return {ok:!!value,text:async()=>JSON.stringify(value)}},
  chrome:{runtime:{getURL:p=>p,getManifest:()=>({version}),reload(){reloads++},onInstalled:{addListener(fn){installed=fn}}},alarms:{async create(){},onAlarm:{addListener(fn){alarm=fn}}},
@@ -13,7 +13,7 @@ function setup({phase='idle',jobs=[],marker={version:'1.15.0',complete:true},dis
 (async()=>{
  for(const phase of ['recording','starting','rotating','saving','merging','downloading','ready']){const t=setup({phase});assert.equal(await t.check(),false);assert.equal(t.metrics().reloads,0)}
  for(const jobs of [[{phase:'queued'}],[{phase:'merging'}],[{phase:'ready',error:'save failed'}]]){const t=setup({jobs});assert.equal(await t.check(),false)}
- for(const args of [{pending:true},{marker:null},{marker:{version:'1.15.0',complete:false}},{disk:{version:'1.16.0'}},{marker:{version:'1.13.0',complete:true}},{marker:{version:'bad',complete:true}},{badFetch:true},{statusFails:true},{startDuringSave:true}]){const t=setup(args);assert.equal(await t.check(),false);assert.equal(t.metrics().reloads,0)}
+ for(const args of [{captures:[{phase:'recording',tabId:2}]},{pending:true},{marker:null},{marker:{version:'1.15.0',complete:false}},{disk:{version:'1.16.0'}},{marker:{version:'1.13.0',complete:true}},{marker:{version:'bad',complete:true}},{badFetch:true},{statusFails:true},{startDuringSave:true}]){const t=setup(args);assert.equal(await t.check(),false);assert.equal(t.metrics().reloads,0)}
  const t=setup();await Promise.all([t.check(),t.check(),t.check()]);assert.equal(t.metrics().reloads,1);assert.equal(t.local.reloadResume.tabId,42);assert.equal(t.local.reloadResume.panelOpen,true);
  await t.restore();assert.equal(t.metrics().opens,0,'do not restore until new runtime version is active');
  t.setVersion('1.15.0');await Promise.all([t.restore(),t.restore()]);assert.equal(t.metrics().opens,1);assert.equal(t.session.panelTarget.id,42);assert.equal(t.local.reloadResume,undefined);assert.equal(await t.check(),false,'same version must not create reload loop');

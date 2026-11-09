@@ -6,7 +6,7 @@ const source = fs.readFileSync(path.join(__dirname,'../extension/recording-sessi
 const journalSource = fs.readFileSync(path.join(__dirname,'../extension/recording-journal.js'),'utf8');
 function setup({captureFails = false,saveFails = false,settingsOverride = null,tabMuted = false,mp4Supported = true,files = new Map(),slowDisk = false,quota = 1e12,assemblyFails = false,segmentLimit = null, folder = null, mergeFails = false, manager = false, saveGate = null, usedSpace = 0} = {}) {
   let listener, constraints, writes = [], closed = false, removed = 0, aborted = 0, stopped = 0, downloads = 0, speakerConnections = 0;
-  const downloadRequests=[],streams=[],messages=[];
+  const downloadRequests=[],streams=[],messages=[],recorders=new WeakMap();
   const tracks = ['video','audio'].map(kind => ({kind,stop(){stopped++},addEventListener(name,fn){this.ended = fn}}));
   tracks[0].getSettings = () => settingsOverride || ({width:constraints?.video.mandatory.maxWidth || 1280,height:constraints?.video.mandatory.maxHeight || 720,frameRate:constraints?.video.mandatory.maxFrameRate || 30});
   const stream = {getTracks:()=>tracks,getVideoTracks:()=>[tracks[0]],getAudioTracks:()=>[tracks[1]]};
@@ -37,7 +37,7 @@ function setup({captureFails = false,saveFails = false,settingsOverride = null,t
   const root=directory('');
   class Recorder {
     static isTypeSupported(type){return mp4Supported && type.startsWith('video/mp4')}
-    constructor(media,options){this.state='inactive';this.options=options;this.mimeType=options.mimeType;Recorder.instance=this}
+    constructor(media,options){this.state='inactive';this.options=options;this.mimeType=options.mimeType;Recorder.instance=this;recorders.set(media,this)}
     start(){this.state='recording';this.ondataavailable({data:new Blob(['first'])})}
     stop(){assert.equal(this.state,'recording');this.state='inactive';queueMicrotask(()=>{this.ondataavailable({data:new Blob(['last'])});this.onstop()})}
   }
@@ -56,8 +56,8 @@ function setup({captureFails = false,saveFails = false,settingsOverride = null,t
   vm.runInContext(segmentLimit === null ? source : source.replace('const maxSegmentBytes = 1024 * 1048576;',`const maxSegmentBytes = ${segmentLimit};`),context);
   if(manager)vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/offscreen.js'),'utf8'),context);
   else vm.runInContext("const testSession = createRecordingSession(); chrome.runtime.onMessage.addListener((m,s,r)=>{testSession.handle(m).then(data=>r({ok:true,data}),error=>r({ok:false,error:error.message}));return true});",context);
-  const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,...(type==='start'?{mergeAfterStop:false}:{}),...extra},{id:'test'},resolve));
-  return {command,tracks,files,streams,messages,emit(data){Recorder.instance.ondataavailable({data})},get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,downloadRequests,speakerConnections,encoding:Recorder.instance?.options}}};
+  const command = (type,extra={}) => new Promise(resolve=>listener({target:'offscreen',type,tabId:1,...(type==='start'?{mergeAfterStop:false}:{}),...extra},{id:'test'},resolve));
+  return {command,tracks,files,streams,messages,emit(data,stream){(stream ? recorders.get(stream) : Recorder.instance).ondataavailable({data})},get stats(){return {constraints,writes,closed,removed,aborted,stopped,downloads,downloadRequests,speakerConnections,encoding:Recorder.instance?.options}}};
 }
 async function until(test,phase) {
   for(let i=0;i<100;i++){const s=await test.command('status');if(s.data.phase===phase)return s.data;await new Promise(r=>setTimeout(r,5))}

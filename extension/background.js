@@ -30,7 +30,8 @@ async function setBadge(phase) {
 async function handle(message) {
   switch (message.type) {
     case 'prepare-audio': return prepareCapturedAudio(message.tabId);
-    case 'restore-audio': await restoreCapturedAudio(); return null;
+    case 'restore-audio':
+      if (Number.isInteger(message.tabId)) await restoreCapturedAudio(message.tabId); return null;
     case 'update-settings': return getUpdateSettings();
     case 'update-source': return saveUpdateSource(message.url);
     case 'check-update': return checkForUpdate();
@@ -77,15 +78,16 @@ async function handle(message) {
         if (!tab.url || !/^https?:|^file:/.test(tab.url)) throw new Error('請開啟一般網頁；Chrome 設定頁與擴充功能頁不能錄製。');
         await ensureOffscreen();
         const state = await offscreen('status');
-        if (!['idle','error'].includes(state.phase)) throw new Error('請先停止錄影並儲存或刪除暫存影片。');
+        if (state.captures.some(capture=>capture.tabId === tab.id)) throw new Error('這個分頁已在錄影。');
+        if (state.captures.length >= state.captureLimit) throw new Error('已同時錄製兩個分頁，請先停止其中一個。');
         const streamId = await chrome.tabCapture.getMediaStreamId({targetTabId:tab.id});
         const result = await offscreen('start',{streamId,title:tab.title || 'Chrome 分頁',tabId:tab.id,quality:message.quality,monitorAudio:message.monitorAudio === true,mergeAfterStop:message.mergeAfterStop !== false});
         await chrome.storage.local.remove('lastError');
-        await setBadge('recording');
+        await setBadge(result.phase);
         return result;
       } finally { starting = false; }
     }
-    case 'stop': return offscreen('stop');
+    case 'stop': return offscreen('stop',{tabId:message.tabId,captureId:message.captureId});
     case 'download': return offscreen('download',{jobId:message.jobId});
     case 'save-segments': return offscreen('save-segments',{jobId:message.jobId});
     case 'discard': return offscreen('discard',{jobId:message.jobId});

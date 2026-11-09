@@ -17,6 +17,8 @@
       <div class="actions"><button id="start" class="primary" disabled>● 開始錄影</button><button id="stop" class="stop" disabled>■ 停止並背景儲存</button></div>
       <div class="recovery"><button id="retry" class="primary" hidden>重新儲存影片</button><button id="save-segments" class="text-button" hidden>改用分段儲存</button><button id="discard" class="text-button" hidden>刪除暫存影片</button></div>
       <p id="error" role="alert"></p>
+      <p id="capture-help" class="target-help"></p>
+      <section id="other-captures" hidden><h2>其他分頁錄影</h2><div id="capture-list"></div></section>
       <section id="background-jobs" hidden><h2>背景儲存</h2><p class="target-help">前一部影片儲存中，也能開始下一次錄影。請保持 Chrome 開啟，等所有影片儲存完成再更新程式。</p><div id="job-list"></div></section><button id="diagnostics" class="text-button">匯出錯誤紀錄</button>
     </section>
     <aside>

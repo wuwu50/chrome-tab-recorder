@@ -89,7 +89,7 @@ const initialized = (async () => {
 })();
 async function releaseMedia() {
   if (media) {
-    const restored = await chrome.runtime.sendMessage({target:'background',type:'restore-audio'}).catch(() => null);
+    const restored = await chrome.runtime.sendMessage({target:'background',type:'restore-audio',tabId:state.tabId}).catch(() => null);
     if (!restored?.ok) state.error = '無法確認分頁靜音已恢復，請檢查 Chrome 分頁的靜音狀態。';
   }
   media?.getTracks().forEach(track => track.stop());
@@ -152,7 +152,7 @@ async function start(message) {
     recorder = new MediaRecorder(media,recorderOptions);
     if (!recorder.mimeType.toLowerCase().startsWith('video/mp4')) throw new Error('編碼器未使用 MP4，已取消錄影。');
     const stamp = new Date().toLocaleString('sv-SE').replace(/[^0-9]/g,'');
-    filename = `分頁錄影-${stamp}.mp4`;
+    filename = `分頁錄影-${stamp}-${message.tabId}.mp4`;
     await checkSpace();
     await journal.begin({filename,startedAt:Date.now(),captureFormat:state.captureFormat,requestedFps:state.requestedFps,segmented:true,mergeAfterStop:message.mergeAfterStop !== false});
     attachRecorder();

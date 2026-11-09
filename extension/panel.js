@@ -14,7 +14,7 @@ async function loadFolder() {
   finally { folderLoading = false; render(); }
 }
 $('choose-folder').addEventListener('click',async()=>{
-  if (busy || folderLoading || !['idle','error','ready'].includes(state.phase)) return;
+  if (busy || folderLoading || hasActiveCaptures() || !['idle','error','ready'].includes(state.phase)) return;
   busy = true; render();
   try {
     const selected = await window.showDirectoryPicker({id:'recorder-output',mode:'readwrite',startIn:'videos'});
@@ -24,7 +24,7 @@ $('choose-folder').addEventListener('click',async()=>{
   finally { busy = false; render(); }
 });
 $('allow-folder').addEventListener('click',async()=>{
-  if (busy || folderLoading || !['idle','error','ready'].includes(state.phase)) return;
+  if (busy || folderLoading || hasActiveCaptures() || !['idle','error','ready'].includes(state.phase)) return;
   busy = true; render();
   try { await OutputFolder.authorized(folderHandle,true); await loadFolder(); localError = ''; }
   catch (error) { localError = error.message; }
@@ -32,6 +32,24 @@ $('allow-folder').addEventListener('click',async()=>{
 });
 const officialUpdateSource = 'https://raw.githubusercontent.com/wuwu50/chrome-tab-recorder/main/version.json';
 function nativeUpdateAvailable() { return navigator.userAgent.includes('Windows') && configuredUpdateSource === officialUpdateSource; }
+function hasActiveCaptures() { return !!state.preparing || (state.captures || []).length > 0; }
+function renderCaptures() {
+  const others = (state.captures || []).filter(capture=>capture.tabId !== target?.id);
+  $('other-captures').hidden = !others.length;
+  const list = $('capture-list');
+  const signature = JSON.stringify([others.map(({id,phase,title})=>[id,phase,title]),busy]);
+  if (list.dataset.signature === signature) return;
+  list.dataset.signature = signature; list.replaceChildren();
+  for (const capture of others) {
+    const row = document.createElement('div'); row.className = 'save-job';
+    const title = document.createElement('strong'); title.textContent = capture.title || '另一個 Chrome 分頁';
+    const stop = document.createElement('button'); stop.className = 'stop';
+    stop.textContent = capture.phase === 'saving' ? '正在完成…' : '停止並儲存此分頁';
+    stop.disabled = busy || !['recording','rotating'].includes(capture.phase);
+    stop.addEventListener('click',()=>run('stop',{tabId:capture.tabId,captureId:capture.id}));
+    row.append(title,stop); list.append(row);
+  }
+}
 function hasPendingJobs() { return (state.jobs || []).length > 0; }
 function renderJobs() {
   const jobs = state.jobs || [];
@@ -103,7 +121,7 @@ $('save-update-source').addEventListener('click',async()=>{
 });
 $('check-update').addEventListener('click',async()=>{
   if (nativeUpdateAvailable()) {
-    if (busy || hasPendingJobs() || !['idle','error'].includes(state.phase)) { updateMessage('請先停止錄影並完成儲存，才能安裝更新。',true); return; }
+    if (busy || hasPendingJobs() || hasActiveCaptures() || !['idle','error'].includes(state.phase)) { updateMessage('請先停止錄影並完成儲存，才能安裝更新。',true); return; }
     // Launch directly from the click so Chrome retains the user's activation.
     // The native updater checks, confirms, downloads and installs; no web download.
     $('update-install').click(); return;
@@ -142,12 +160,14 @@ function render() {
   $('segments').textContent = state.phase === 'merging' ? `正在處理第 ${state.mergePart || 1} 段；完成後儲存一部 MP4` : state.segmented ? `內部分段保護：第 ${state.partNumber || 1} 段 · 停止後自動合併` : '長錄有分段保護，停止後自動合併成一部 MP4';
   $('capture-format').textContent = state.captureFormat ? `Chrome 擷取設定：${state.captureFormat}` : '尚未擷取；實際畫面更新率取決於來源與硬體';
   const recording = !['idle','error'].includes(state.phase);
-  $('update-install').setAttribute('aria-disabled',String(recording || busy || hasPendingJobs()));
-  $('update-install').classList.toggle('disabled-link',recording || busy || hasPendingJobs());
+  $('update-install').setAttribute('aria-disabled',String(recording || busy || hasPendingJobs() || hasActiveCaptures()));
+  $('update-install').classList.toggle('disabled-link',recording || busy || hasPendingJobs() || hasActiveCaptures());
   $('title').textContent = (recording ? state.title : target?.title) || '尚未選擇錄製分頁';
   $('site').textContent = recording && state.tabId !== target?.id ? '已固定錄製目標' : (target?.url || '在目標分頁開啟此控制視窗');
-  $('start').disabled = preview || busy || folderLoading || recording || state.preparing || !target;
-  $('choose-folder').disabled = preview || busy || folderLoading || !['idle','error','ready'].includes(state.phase) || (state.jobs || []).some(job=>!['ready','error'].includes(job.phase));
+  const atCapacity = (state.captures || []).length >= (state.captureLimit || 2);
+  $('start').disabled = preview || busy || folderLoading || recording || state.preparing || atCapacity || !target;
+  $('capture-help').textContent = atCapacity ? '目前已有兩個錄影，停止其中一個後可再開始。' : '可同時錄製兩個分頁。到另一個視窗的目標分頁點錄影機圖示，再按開始。';
+  $('choose-folder').disabled = preview || busy || folderLoading || hasActiveCaptures() || !['idle','error','ready'].includes(state.phase) || (state.jobs || []).some(job=>!['ready','error'].includes(job.phase));
   $('allow-folder').hidden = !folderHandle;
   $('allow-folder').disabled = $('choose-folder').disabled;
   $('stop').disabled = preview || busy || !['recording','rotating'].includes(state.phase);
@@ -159,13 +179,17 @@ function render() {
   $('save-segments').hidden = state.phase !== 'ready';
   $('save-segments').disabled = preview || busy;
   $('error').textContent = localError || state.error || '';
+  renderCaptures();
   renderJobs();
 }
 async function refresh() {
   if (preview || busy) return;
   try {
     const [nextState,nextTarget] = await Promise.all([command('status'),command('panel-target')]);
-    state = nextState; target = nextTarget;
+    if (busy) return;
+    target = nextTarget;
+    const current = nextState.captures?.find(capture=>capture.tabId === target?.id);
+    state = nextState.captures ? {...nextState,phase:'idle',bytes:0,title:undefined,tabId:undefined,startedAt:undefined,endedAt:undefined,segmented:false,captureFormat:undefined,...current} : nextState;
   } catch (error) { localError = error.message; }
   render();
 }
@@ -176,11 +200,12 @@ async function run(type,extra={}) {
   finally { busy = false; await refresh(); }
 }
 $('start').addEventListener('click',async()=>{
+  const tabId = target?.id;
   try { await OutputFolder.authorized(folderHandle,true); }
   catch (error) { localError = error.message; render(); return; }
-  return run('start',{tabId:target?.id,quality:$('quality').value,monitorAudio:$('monitor-audio').checked});
+  return run('start',{tabId,quality:$('quality').value,monitorAudio:$('monitor-audio').checked});
 });
-$('stop').addEventListener('click',()=>run('stop'));
+$('stop').addEventListener('click',()=>run('stop',{tabId:state.tabId,captureId:state.id}));
 $('retry').addEventListener('click',async()=>{
   try { await OutputFolder.authorized(folderHandle,true); }
   catch (error) { localError = error.message; render(); return; }
@@ -209,7 +234,7 @@ $('locate').addEventListener('click',async()=>{
   } catch (_) { localError = '目標分頁已關閉，請重新選擇分頁。'; render(); }
 });
 $('update-install').addEventListener('click',event=>{
-  if (busy || hasPendingJobs() || !['idle','error'].includes(state.phase)) {
+  if (busy || hasPendingJobs() || hasActiveCaptures() || !['idle','error'].includes(state.phase)) {
     event.preventDefault();updateMessage('請先停止錄影並完成儲存，才能安裝更新。',true);
   } else {
     updateMessage('已呼叫自動更新器，請在更新視窗確認安裝。會自動下載並沿用原本位置，不需要選擇 EXE 或資料夾。安裝完成後會在空閒時自動啟用新版。若沒有開啟更新器，請使用桌面錄影機的「檢查更新並安裝」。');
@@ -219,6 +244,6 @@ if (preview) {
   $('demo').hidden = false;
   target = {id:1,title:'教學影片 — 已選擇的 Chrome 分頁',url:'https://example.com/video'};
   render();
-  $('version').textContent = 'v1.14.0';
+  $('version').textContent = 'v1.16.0';
   updateButtons();
 } else { refresh(); loadFolder(); loadUpdateSettings(); setInterval(refresh,1000); }
